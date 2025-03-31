@@ -3,13 +3,9 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Route, Switch, useLocation } from "wouter";
 import { UserProvider } from "./context/UserContext";
-import { ToastProvider } from "./context/ToastContext";
+import { Toaster } from "./components/ui/toaster";
 import Home from "./pages/home";
 import TelegramApp from "./pages/telegram";
-import Dashboard from "./pages/dashboard";
-import Tasks from "./pages/tasks";
-import Boosts from "./pages/boosts";
-import Profile from "./pages/profile";
 import Admin from "./pages/admin";
 import Login from "./pages/login";
 import NotFound from "./pages/not-found";
@@ -48,21 +44,18 @@ function App() {
   
   return (
     <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        <UserProvider telegramMode={location === '/telegram'}>
+      <UserProvider telegramMode={location === '/telegram'}>
+        <main className="app">
           <Switch>
             <Route path="/" component={Home} />
             <Route path="/telegram" component={TelegramApp} />
-            <Route path="/dashboard" component={Dashboard} />
-            <Route path="/tasks" component={Tasks} />
-            <Route path="/boosts" component={Boosts} />
-            <Route path="/profile" component={Profile} />
             <Route path="/admin" component={Admin} />
             <Route path="/login" component={Login} />
             <Route component={NotFound} />
           </Switch>
-        </UserProvider>
-      </ToastProvider>
+          <Toaster />
+        </main>
+      </UserProvider>
     </QueryClientProvider>
   );
 }
