@@ -17,3 +17,5 @@ coverage
 *.pem
 *.key
 *.crt
+# Include client-dist directory
+!client-dist/

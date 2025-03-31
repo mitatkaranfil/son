@@ -5,9 +5,9 @@
   "license": "MIT",
   "scripts": {
     "dev": "tsx server/index.ts",
-    "build:client": "vite build --debug --outDir ../client-dist",
-    "build:server": "esbuild server/index.ts --platform=node --bundle --format=esm --outdir=dist --external:express --external:pg --external:postgres --external:drizzle-orm --external:@neondatabase/* --external:zod --external:path --external:fs",
-    "build": "npm run build:client",
+    "build:client": "vite build --debug --outDir client-dist",
+    "build:server": "tsc -p tsconfig.server.json && esbuild server/index.ts --bundle --format=esm --outdir=dist --platform=node --target=node18 --external:express --external:pg --external:postgres --external:drizzle-orm --external:@neondatabase/* --external:zod --external:path --external:fs",
+    "build": "npm run build:client && npm run build:server",
     "start": "set PORT=3000 && node -r dotenv/config --import tsx server/index.ts",
     "check": "tsc",
     "db:push": "drizzle-kit push"

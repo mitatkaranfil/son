@@ -103,6 +103,8 @@ export async function setupVite(app: Express, server: Server) {
 export function serveStatic(app: Express) {
   try {
     const distPath = path.resolve(__dirname, "..", "client-dist");
+    console.log("Statik dosya yolu:", distPath);
+    console.log("Klasör mevcut mu:", fs.existsSync(distPath));
 
     if (!fs.existsSync(distPath)) {
       log(`UYARI: Build klasörü bulunamadı: ${distPath}`);
@@ -118,8 +120,17 @@ export function serveStatic(app: Express) {
     log(`Statik dosyalar sunuluyor: ${distPath}`);
     app.use(express.static(distPath));
 
-    // fall through to index.html if the file doesn't exist
+    // Login sayfası için özel yönlendirme
+    app.get("/login", (_req, res) => {
+      const indexPath = path.resolve(distPath, "index.html");
+      console.log("Login isteği alındı, index.html yolu:", indexPath);
+      console.log("Dosya mevcut mu:", fs.existsSync(indexPath));
+      res.sendFile(indexPath);
+    });
+
+    // Diğer sayfalar için fallback
     app.use("*", (_req, res) => {
+      console.log("Yönlendirme: index.html'e yönlendiriliyor");
       res.sendFile(path.resolve(distPath, "index.html"));
     });
   } catch (error) {

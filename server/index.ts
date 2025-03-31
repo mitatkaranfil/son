@@ -126,54 +126,46 @@ app.get('/telegram', (req: Request, res: Response) => {
 // API rotaları
 app.use('/api', isAuthenticated);
 
-async function startServer() {
-  console.log('Using in-memory storage for development');
-  
+export async function startServer() {
   try {
-    // Veritabanını başlat - setupDatabase kullanıyoruz
+    const PORT = process.env.PORT || 8080;
+    const server = app.listen(PORT, () => {
+      console.log(`[express] serving on port ${PORT}`);
+      console.log(`[express] client-dist path: ${path.resolve(__dirname, "..", "client-dist")}`);
+    });
+
+    // Register Vite development server if in development mode
+    if (process.env.NODE_ENV !== 'production') {
+      await registerViteDevServer(app);
+    }
+
+    // Serve static files
+    serveStatic(app);
+
+    // Initialize storage
     const dbInitialized = await setupDatabase();
     if (!dbInitialized) {
       throw new Error('Veritabanı başlatılamadı');
     }
 
-    // Admin kullanıcısını oluştur
+    // Create admin user if it doesn't exist
     try {
-      const adminUser = await createAdminUser(ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_TELEGRAM_ID);
-      if (adminUser) {
-        log('Admin kullanıcısı başarıyla oluşturuldu/güncellendi');
-      }
+      await createAdminUser(
+        process.env.ADMIN_USERNAME || 'admin',
+        process.env.ADMIN_PASSWORD || 'admin123',
+        process.env.ADMIN_TELEGRAM_ID || '8000260089'
+      );
     } catch (error) {
-      if (error instanceof Error && error.message.includes('kullanıcı adı zaten kullanılıyor')) {
-        log('Admin kullanıcısı zaten mevcut');
-      } else {
-        log(`Admin kullanıcı oluşturma hatası: ${error instanceof Error ? error.message : JSON.stringify(error)}`);
-      }
+      console.log("Admin user already exists or creation failed:", error);
     }
 
-    // Vite veya statik dosya sunucusu kur
-    if (process.env.NODE_ENV !== "production") {
-      try {
-        await registerViteDevServer(app);
-      } catch (error) {
-        console.error("Vite server başlatılamadı, statik dosya sunucusuna geçiliyor:", error);
-        serveStatic(app);
-      }
-    } else {
-      // Üretim ortamında statik dosyaları sun
-      serveStatic(app);
-    }
+    // Register API routes
+    await registerRoutes(app);
 
-    // API rotalarını kaydet
-    const server = await registerRoutes(app);
-
-    // Sunucuyu başlat
-    const port = process.env.PORT || 3000;
-    server.listen(port, () => {
-      console.log(`[express] serving on port ${port}`);
-    });
+    return server;
   } catch (error) {
-    log(`Sunucu başlatılamadı: ${error instanceof Error ? error.message : String(error)}`);
-    throw error;
+    console.error("Server startup error:", error);
+    process.exit(1);
   }
 }
 
