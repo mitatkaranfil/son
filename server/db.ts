@@ -12,7 +12,15 @@ export function log(message: string) {
 const databaseUrl = process.env.DATABASE_URL || 'postgres://default:password@localhost:5432/cosmodb';
 
 // SQL bağlantısı oluştur
-let sqlConnection = neon(databaseUrl);
+let sqlConnection: any;
+
+try {
+    sqlConnection = neon(databaseUrl);
+    log('SQL bağlantısı oluşturuldu');
+} catch (error) {
+    log(`SQL bağlantısı oluşturulurken hata: ${error instanceof Error ? error.message : String(error)}`);
+    throw error;
+}
 
 // Drizzle örneğini oluştur
 export const db = drizzle(sqlConnection, { schema });
@@ -26,17 +34,39 @@ async function initializeDatabase() {
     try {
       retryCount++;
       log(`Veritabanına bağlanılıyor (deneme ${retryCount}/${maxRetries})...`);
+      log(`Veritabanı URL: ${databaseUrl}`);
       
       // Test connection
       const result = await sqlConnection`SELECT 1 as test`;
       if (result[0]?.test === 1) {
         log('Veritabanı bağlantısı başarılı');
+        
+        // Daha detaylı testler
+        const dbInfo = await sqlConnection`SELECT version() as version, current_database() as database`;
+        log('Veritabanı bilgisi:', dbInfo[0]);
+        
+        // Tablo kontrolü
+        const tables = await sqlConnection`
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public'
+        `;
+        log('Veritabanı tabloları:', tables);
+        
         return true;
       } else {
         throw new Error('Veritabanı yanıt verdi ancak beklenen sonuç alınamadı');
       }
     } catch (error) {
       log(`Veritabanı bağlantı hatası: ${error instanceof Error ? error.message : String(error)}`);
+      
+      if (error instanceof Error) {
+        log('Hata detayları:', {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        });
+      }
       
       if (retryCount < maxRetries) {
         const delay = retryCount * 1000; // Her seferinde biraz daha fazla bekle
@@ -49,20 +79,8 @@ async function initializeDatabase() {
       }
     }
   }
-  
-  try {
-    log('Veritabanı bağlantısı oluşturuluyor...');
-    const success = await connectWithRetry();
-    
-    if (!success) {
-      log('Veritabanı bağlantısı başarısız, ancak uygulama çalışmaya devam edecek');
-    }
-    
-    return success;
-  } catch (error) {
-    console.error('Veritabanı bağlantısı oluşturulamadı:', error);
-    return false;
-  }
+
+  return connectWithRetry();
 }
 
 // Initialize database connection
@@ -70,10 +88,8 @@ initializeDatabase().then(success => {
   if (success) {
     log('Veritabanı başarıyla başlatıldı');
   } else {
-    log('UYARI: Veritabanı başlatılamadı, uygulamanın bazı özellikleri çalışmayabilir');
+    log('Veritabanı başlatılamadı, ancak uygulama çalışmaya devam edecek');
   }
-}).catch(err => {
-  console.error('Kritik hata: Veritabanı başlatılamadı:', err);
 });
 
 // Veritabanı bağlantısını test et
@@ -87,4 +103,4 @@ export async function testConnection() {
     log(`Veritabanı bağlantı hatası: ${error instanceof Error ? error.message : String(error)}`);
     return false;
   }
-} 
+}
