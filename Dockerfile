@@ -53,6 +53,9 @@ COPY package*.json ./
 # Sadece production bağımlılıkları yükle
 RUN npm install --only=production --legacy-peer-deps --no-audit
 
+# Vite'ı production ortamında yükle
+RUN npm install --save vite
+
 # Derleme aşamasından gerekli dosyaları kopyala
 COPY --from=builder /app/dist ./dist
 
