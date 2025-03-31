@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getTasks, getUserTasks, updateUserTaskProgress } from "@/lib/firebase";
+import { getTasks, getUserTasks, updateUserTaskProgress } from "@/lib/api";
 import { Task, UserTask, TaskFilter } from "@/types";
 import useUser from "./useUser";
 import { useToast } from "@/hooks/use-toast";

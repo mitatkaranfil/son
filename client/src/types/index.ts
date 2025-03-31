@@ -1,5 +1,3 @@
-import { Timestamp } from "firebase/firestore";
-
 // User Type
 export interface User {
   id: string;
@@ -11,10 +9,10 @@ export interface User {
   level: number;
   points: number;
   miningSpeed: number;
-  lastMiningTime: Timestamp | Date;
+  lastMiningTime: Date;
   referralCode: string;
   referredBy?: string;
-  joinDate: Timestamp | Date;
+  joinDate: Date;
   completedTasksCount: number;
   boostUsageCount: number;
   referralCount?: number; // Used in UI, not stored directly
@@ -31,7 +29,7 @@ export interface Task {
   isActive: boolean;
   telegramAction?: string | null;
   telegramTarget?: string | null;
-  createdAt?: Timestamp | Date;
+  createdAt?: Date;
 }
 
 // User Task Type
@@ -41,8 +39,8 @@ export interface UserTask {
   taskId: string;
   progress: number;
   isCompleted: boolean;
-  completedAt?: Timestamp | Date | null;
-  createdAt: Timestamp | Date;
+  completedAt?: Date | null;
+  createdAt: Date;
   task?: Task; // Populated when retrieved
 }
 
@@ -58,7 +56,7 @@ export interface BoostType {
   iconName: string;
   colorClass: string;
   isPopular: boolean;
-  createdAt?: Timestamp | Date;
+  createdAt?: Date;
 }
 
 // User Boost Type
@@ -66,10 +64,10 @@ export interface UserBoost {
   id: string;
   userId: string;
   boostTypeId: string;
-  startTime: Timestamp | Date;
-  endTime: Timestamp | Date;
+  startTime: Date;
+  endTime: Date;
   isActive: boolean;
-  createdAt?: Timestamp | Date;
+  createdAt?: Date;
   boostType?: BoostType; // Populated when retrieved
 }
 
@@ -79,7 +77,7 @@ export interface Referral {
   referrerId: string;
   referredId: string;
   points: number;
-  createdAt: Timestamp | Date;
+  createdAt: Date;
   referred?: User; // Populated when retrieved
 }
 

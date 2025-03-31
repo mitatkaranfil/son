@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import useUser from "@/hooks/useUser";
-import { getUserReferrals } from "@/lib/firebase";
+import { getUserReferrals } from "@/lib/api";
 import { formatDate, formatPoints, formatTimeSinceJoin } from "@/lib/mining";
 import { Referral } from "@/types";
 import { shareWithTelegram, showAlert, hapticFeedback } from "@/lib/telegram";
