@@ -24,19 +24,19 @@ export class NeonStorage implements IStorage {
     }
   }
   
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    try {
+      const result = await db.select().from(users).where(eq(users.username, username));
+      return result.length > 0 ? result[0] : undefined;
+    } catch (error) {
+      log(`getUserByUsername error: ${error instanceof Error ? error.message : String(error)}`);
+      return undefined;
+    }
+  }
+  
   async createUser(userData: InsertUser): Promise<User> {
     try {
-      const result = await db.insert(users).values({
-        ...userData,
-        level: 1,
-        points: 0,
-        miningSpeed: 10,
-        lastMiningTime: new Date(),
-        completedTasksCount: 0,
-        boostUsageCount: 0,
-        joinDate: new Date()
-      }).returning();
-      
+      const result = await db.insert(users).values(userData).returning();
       return result[0];
     } catch (error) {
       log(`createUser error: ${error instanceof Error ? error.message : String(error)}`);
@@ -44,59 +44,67 @@ export class NeonStorage implements IStorage {
     }
   }
   
-  async updateUserPoints(userId: number, points: number): Promise<User | undefined> {
+  async updateUserPoints(userId: number, pointsToAdd: number): Promise<boolean> {
     try {
-      const user = await db.select().from(users).where(eq(users.id, userId));
-      if (user.length === 0) return undefined;
+      const user = await this.getUserById(userId);
+      if (!user) return false;
       
-      const currentPoints = user[0].points;
+      await db.update(users)
+        .set({ points: user.points + pointsToAdd })
+        .where(eq(users.id, userId));
+      
+      return true;
+    } catch (error) {
+      log(`updateUserPoints error: ${error instanceof Error ? error.message : String(error)}`);
+      return false;
+    }
+  }
+  
+  async updateUserLastMiningTime(userId: number): Promise<boolean> {
+    try {
+      await db.update(users)
+        .set({ lastMiningTime: new Date() })
+        .where(eq(users.id, userId));
+      
+      return true;
+    } catch (error) {
+      log(`updateUserLastMiningTime error: ${error instanceof Error ? error.message : String(error)}`);
+      return false;
+    }
+  }
+  
+  async updateUserRole(userId: number, role: string, username?: string, password?: string): Promise<User | undefined> {
+    try {
+      const updateData: Partial<User> = { role: role as any };
+      
+      // Eğer kullanıcı adı varsa güncelle
+      if (username) {
+        updateData.username = username;
+      }
+      
+      // Eğer şifre varsa güncelle
+      if (password) {
+        updateData.password = password;
+      }
       
       const result = await db.update(users)
-        .set({ points: currentPoints + points })
+        .set(updateData)
         .where(eq(users.id, userId))
         .returning();
       
-      return result[0];
+      return result.length > 0 ? result[0] : undefined;
     } catch (error) {
-      log(`updateUserPoints error: ${error instanceof Error ? error.message : String(error)}`);
+      log(`updateUserRole error: ${error instanceof Error ? error.message : String(error)}`);
       return undefined;
     }
   }
   
-  async getUserById(id: number): Promise<User | undefined> {
+  async getUserById(userId: number): Promise<User | undefined> {
     try {
-      const result = await db.select().from(users).where(eq(users.id, id));
+      const result = await db.select().from(users).where(eq(users.id, userId));
       return result.length > 0 ? result[0] : undefined;
     } catch (error) {
       log(`getUserById error: ${error instanceof Error ? error.message : String(error)}`);
-      return undefined;
-    }
-  }
-  
-  async updateUserMiningSpeed(userId: number, speed: number): Promise<User | undefined> {
-    try {
-      const result = await db.update(users)
-        .set({ miningSpeed: speed })
-        .where(eq(users.id, userId))
-        .returning();
-      
-      return result.length > 0 ? result[0] : undefined;
-    } catch (error) {
-      log(`updateUserMiningSpeed error: ${error instanceof Error ? error.message : String(error)}`);
-      return undefined;
-    }
-  }
-  
-  async updateUserLastMiningTime(userId: number): Promise<User | undefined> {
-    try {
-      const result = await db.update(users)
-        .set({ lastMiningTime: new Date() })
-        .where(eq(users.id, userId))
-        .returning();
-      
-      return result.length > 0 ? result[0] : undefined;
-    } catch (error) {
-      log(`updateUserLastMiningTime error: ${error instanceof Error ? error.message : String(error)}`);
       return undefined;
     }
   }
@@ -110,12 +118,21 @@ export class NeonStorage implements IStorage {
     }
   }
   
+  async getAllUsers(): Promise<User[]> {
+    try {
+      return await db.select().from(users);
+    } catch (error) {
+      log(`getAllUsers error: ${error instanceof Error ? error.message : String(error)}`);
+      return [];
+    }
+  }
+  
   // Task methods
   async getTasks(type?: string): Promise<Task[]> {
     try {
       if (type) {
         return await db.select().from(tasks)
-          .where(and(eq(tasks.type, type), eq(tasks.isActive, true)));
+          .where(and(eq(tasks.type, type as "daily" | "weekly" | "special"), eq(tasks.isActive, true)));
       }
       return await db.select().from(tasks).where(eq(tasks.isActive, true));
     } catch (error) {
@@ -259,9 +276,23 @@ export class NeonStorage implements IStorage {
     return [];
   }
   
-  async createUserBoost(userBoost: InsertUserBoost): Promise<UserBoost> {
-    // Implementasyon
-    throw new Error("Method not implemented");
+  async createUserBoost(userBoost: InsertUserBoost): Promise<UserBoost & { boostType: BoostType }> {
+    try {
+      const result = await db.insert(userBoosts).values(userBoost).returning();
+      const boostTypeResult = await db.select().from(boostTypes).where(eq(boostTypes.id, userBoost.boostTypeId));
+      
+      if (result.length > 0 && boostTypeResult.length > 0) {
+        return {
+          ...result[0],
+          boostType: boostTypeResult[0]
+        };
+      }
+      
+      throw new Error("Failed to create user boost");
+    } catch (error) {
+      log(`createUserBoost error: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
   }
   
   async deactivateExpiredBoosts(): Promise<number> {
@@ -269,9 +300,27 @@ export class NeonStorage implements IStorage {
     return 0;
   }
   
-  async getReferrals(referrerId: number): Promise<(Referral & { referred: User })[]> {
-    // Implementasyon
-    return [];
+  async getReferrals(referrerId: number): Promise<(Referral & { referredUser: User })[]> {
+    try {
+      const referralsResult = await db.select().from(referrals).where(eq(referrals.referrerId, referrerId));
+      const result: (Referral & { referredUser: User })[] = [];
+      
+      for (const referral of referralsResult) {
+        const userResult = await db.select().from(users).where(eq(users.id, referral.referredId));
+        
+        if (userResult.length > 0) {
+          result.push({
+            ...referral,
+            referredUser: userResult[0]
+          });
+        }
+      }
+      
+      return result;
+    } catch (error) {
+      log(`getReferrals error: ${error instanceof Error ? error.message : String(error)}`);
+      return [];
+    }
   }
   
   async createReferral(referral: InsertReferral): Promise<Referral> {

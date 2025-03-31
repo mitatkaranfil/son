@@ -11,12 +11,14 @@ import {
 export interface IStorage {
   // User methods
   getUserByTelegramId(telegramId: string): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  updateUserPoints(userId: number, points: number): Promise<User | undefined>;
+  updateUserPoints(userId: number, pointsToAdd: number): Promise<boolean>;
+  updateUserLastMiningTime(userId: number): Promise<boolean>;
+  updateUserRole(userId: number, role: string, username?: string, password?: string): Promise<User | undefined>;
   getUserById(id: number): Promise<User | undefined>;
-  updateUserMiningSpeed(userId: number, speed: number): Promise<User | undefined>;
-  updateUserLastMiningTime(userId: number): Promise<User | undefined>;
   getUsersByReferralCode(referralCode: string): Promise<User[]>;
+  getAllUsers(): Promise<User[]>;
   
   // Task methods
   getTasks(type?: string): Promise<Task[]>;
@@ -42,13 +44,13 @@ export interface IStorage {
   // UserBoost methods
   getUserBoosts(userId: number): Promise<(UserBoost & { boostType: BoostType })[]>;
   getUserActiveBoosts(userId: number): Promise<(UserBoost & { boostType: BoostType })[]>;
-  createUserBoost(userBoost: InsertUserBoost): Promise<UserBoost>;
+  createUserBoost(userBoost: InsertUserBoost): Promise<UserBoost & { boostType: BoostType }>;
   deactivateExpiredBoosts(): Promise<number>; // Returns count of deactivated boosts
   
   // Referral methods
-  getReferrals(referrerId: number): Promise<(Referral & { referred: User })[]>;
-  createReferral(referral: InsertReferral): Promise<Referral>;
+  getReferrals(userId: number): Promise<(Referral & { referredUser: User })[]>;
   getReferralCount(userId: number): Promise<number>;
+  createReferral(referral: InsertReferral): Promise<Referral>;
 }
 
 export class MemStorage implements IStorage {
@@ -173,6 +175,11 @@ export class MemStorage implements IStorage {
     return user;
   }
   
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const user = Array.from(this.users.values()).find(u => u.username === username);
+    return user;
+  }
+  
   async createUser(userData: InsertUser): Promise<User> {
     const id = this.userIdCounter++;
     const user: User = {
@@ -191,13 +198,41 @@ export class MemStorage implements IStorage {
     return user;
   }
   
-  async updateUserPoints(userId: number, points: number): Promise<User | undefined> {
+  async updateUserPoints(userId: number, pointsToAdd: number): Promise<boolean> {
+    const user = this.users.get(userId);
+    if (!user) return false;
+    
+    const updatedUser = {
+      ...user,
+      points: user.points + pointsToAdd
+    };
+    
+    this.users.set(userId, updatedUser);
+    return true;
+  }
+  
+  async updateUserLastMiningTime(userId: number): Promise<boolean> {
+    const user = this.users.get(userId);
+    if (!user) return false;
+    
+    const updatedUser = {
+      ...user,
+      lastMiningTime: new Date()
+    };
+    
+    this.users.set(userId, updatedUser);
+    return true;
+  }
+  
+  async updateUserRole(userId: number, role: string, username?: string, password?: string): Promise<User | undefined> {
     const user = this.users.get(userId);
     if (!user) return undefined;
     
     const updatedUser = {
       ...user,
-      points: user.points + points
+      role,
+      username,
+      password
     };
     
     this.users.set(userId, updatedUser);
@@ -208,34 +243,12 @@ export class MemStorage implements IStorage {
     return this.users.get(id);
   }
   
-  async updateUserMiningSpeed(userId: number, speed: number): Promise<User | undefined> {
-    const user = this.users.get(userId);
-    if (!user) return undefined;
-    
-    const updatedUser = {
-      ...user,
-      miningSpeed: speed
-    };
-    
-    this.users.set(userId, updatedUser);
-    return updatedUser;
-  }
-  
-  async updateUserLastMiningTime(userId: number): Promise<User | undefined> {
-    const user = this.users.get(userId);
-    if (!user) return undefined;
-    
-    const updatedUser = {
-      ...user,
-      lastMiningTime: new Date()
-    };
-    
-    this.users.set(userId, updatedUser);
-    return updatedUser;
-  }
-  
   async getUsersByReferralCode(referralCode: string): Promise<User[]> {
     return Array.from(this.users.values()).filter(u => u.referralCode === referralCode);
+  }
+  
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
   }
   
   // Task methods
@@ -437,7 +450,7 @@ export class MemStorage implements IStorage {
     });
   }
   
-  async createUserBoost(userBoostData: InsertUserBoost): Promise<UserBoost> {
+  async createUserBoost(userBoostData: InsertUserBoost): Promise<UserBoost & { boostType: BoostType }> {
     const id = this.userBoostIdCounter++;
     const startTime = new Date();
     const userBoost: UserBoost = {
@@ -459,7 +472,7 @@ export class MemStorage implements IStorage {
       this.users.set(user.id, updatedUser);
     }
     
-    return userBoost;
+    return { ...userBoost, boostType: this.boostTypes.get(userBoostData.boostTypeId)! };
   }
   
   async deactivateExpiredBoosts(): Promise<number> {
@@ -481,14 +494,19 @@ export class MemStorage implements IStorage {
   }
   
   // Referral methods
-  async getReferrals(referrerId: number): Promise<(Referral & { referred: User })[]> {
+  async getReferrals(userId: number): Promise<(Referral & { referredUser: User })[]> {
     const referralEntries = Array.from(this.referrals.values())
-      .filter(r => r.referrerId === referrerId);
+      .filter(r => r.referrerId === userId);
     
     return referralEntries.map(r => {
       const referred = this.users.get(r.referredId)!;
-      return { ...r, referred };
+      return { ...r, referredUser: referred };
     });
+  }
+  
+  async getReferralCount(userId: number): Promise<number> {
+    return Array.from(this.referrals.values())
+      .filter(r => r.referrerId === userId).length;
   }
   
   async createReferral(referralData: InsertReferral): Promise<Referral> {
@@ -514,11 +532,6 @@ export class MemStorage implements IStorage {
     }
     
     return referral;
-  }
-  
-  async getReferralCount(userId: number): Promise<number> {
-    return Array.from(this.referrals.values())
-      .filter(r => r.referrerId === userId).length;
   }
 }
 
