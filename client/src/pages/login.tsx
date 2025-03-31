@@ -3,25 +3,24 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { useToast } from "@/components/ui/use-toast";
 import { Lock, User } from "lucide-react";
+
+// Basit bir alert gösterme fonksiyonu
+const showAlert = (message: string, type: 'success' | 'error' = 'error') => {
+  alert(`${type === 'success' ? '✓' : '⚠️'} ${message}`);
+};
 
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [, setLocation] = useLocation();
-  const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!username || !password) {
-      toast({
-        variant: "destructive",
-        title: "Hata",
-        description: "Kullanıcı adı ve şifre gereklidir"
-      });
+      showAlert("Kullanıcı adı ve şifre gereklidir");
       return;
     }
     
@@ -38,10 +37,7 @@ export default function Login() {
       });
       
       if (response.ok) {
-        toast({
-          title: "Giriş Başarılı",
-          description: "Yönlendiriliyorsunuz..."
-        });
+        showAlert("Giriş Başarılı. Yönlendiriliyorsunuz...", "success");
         
         // Kullanıcıyı ana sayfaya yönlendir
         setTimeout(() => {
@@ -49,18 +45,10 @@ export default function Login() {
         }, 1000);
       } else {
         const data = await response.json();
-        toast({
-          variant: "destructive",
-          title: "Giriş Başarısız",
-          description: data.message || "Kullanıcı adı veya şifre hatalı"
-        });
+        showAlert(data.message || "Kullanıcı adı veya şifre hatalı");
       }
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Bağlantı Hatası",
-        description: "Sunucuya bağlanırken bir hata oluştu. Lütfen tekrar deneyin."
-      });
+      showAlert("Sunucuya bağlanırken bir hata oluştu. Lütfen tekrar deneyin.");
       console.error("Login error:", error);
     } finally {
       setIsLoading(false);
