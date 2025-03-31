@@ -1,7 +1,6 @@
 import { createContext, useState, useEffect, ReactNode } from "react";
 import { User, UserBoost } from "@/types";
 import { authenticateTelegramUser } from "@/lib/telegram";
-import { getUserActiveBoosts, updateUserLastMiningTime, updateUserPoints } from "@/lib/firebase";
 import { calculateMiningSpeed, isMiningAvailable } from "@/lib/mining";
 import LoadingScreen from "@/components/LoadingScreen";
 
@@ -72,9 +71,14 @@ export const UserProvider = ({ children }: UserProviderProps) => {
         if (authenticatedUser.id) {
           console.log("UserContext - Loading boosts for user:", authenticatedUser.id);
           try {
-            const boosts = await getUserActiveBoosts(authenticatedUser.id);
-            console.log("UserContext - Loaded boosts:", boosts.length);
-            setActiveBoosts(boosts);
+            const response = await fetch(`/api/users/${authenticatedUser.id}/boosts`);
+            if (response.ok) {
+              const boosts = await response.json();
+              console.log("UserContext - Loaded boosts:", boosts.length);
+              setActiveBoosts(boosts);
+            } else {
+              console.error("UserContext - Failed to load boosts from API");
+            }
           } catch (boostErr) {
             console.error("UserContext - Error loading boosts:", boostErr);
           }
@@ -131,11 +135,30 @@ export const UserProvider = ({ children }: UserProviderProps) => {
       // Calculate earned points
       const earnedPoints = hoursDiff * miningSpeed;
       
-      // Update points in Firebase
-      await updateUserPoints(userToUpdate.id, earnedPoints);
+      // Update points via API
+      const pointsResponse = await fetch(`/api/users/${userToUpdate.id}/points`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ points: earnedPoints }),
+      });
       
-      // Update last mining time
-      await updateUserLastMiningTime(userToUpdate.id);
+      if (!pointsResponse.ok) {
+        throw new Error("Failed to update points");
+      }
+      
+      // Update last mining time via API
+      const miningTimeResponse = await fetch(`/api/users/${userToUpdate.id}/mining-time`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!miningTimeResponse.ok) {
+        throw new Error("Failed to update mining time");
+      }
       
       // Refresh user
       await refreshUser();
@@ -165,8 +188,13 @@ export const UserProvider = ({ children }: UserProviderProps) => {
       
       // Refresh active boosts
       if (refreshedUser.id) {
-        const boosts = await getUserActiveBoosts(refreshedUser.id);
-        setActiveBoosts(boosts);
+        const response = await fetch(`/api/users/${refreshedUser.id}/boosts`);
+        if (response.ok) {
+          const boosts = await response.json();
+          setActiveBoosts(boosts);
+        } else {
+          console.error("Failed to refresh boosts");
+        }
       }
       
     } catch (err) {

@@ -238,87 +238,85 @@ export async function authenticateTelegramUser(referralCode?: string): Promise<U
   }
   
   try {
-    // Try to fetch user with API first (much more reliable than Firebase)
-    try {
-      console.log('Trying to fetch user via API endpoint');
-      const response = await fetch(`/api/users/${telegramUser.telegramId}`);
+    // Try to fetch user from API
+    console.log('Trying to fetch user via API endpoint');
+    const response = await fetch(`/api/users/telegram/${telegramUser.telegramId}`);
+    
+    if (response.ok) {
+      const userData = await response.json();
+      console.log('User found via API:', userData);
+      return userData;
+    } else if (response.status === 404) {
+      // User doesn't exist, create a new one
+      console.log('User not found, creating new user with referral code:', referralCode);
       
-      if (response.ok) {
-        const userData = await response.json();
-        console.log('User found via API:', userData);
-        return userData;
-      } else {
-        console.log('User not found via API, will try creating');
-        
-        // Generate a unique referral code
-        const newReferralCode = nanoid(8);
-        
-        // Try to create user via API
-        const userData = {
+      // Generate a unique referral code for the new user
+      const uniqueReferralCode = generateReferralCode();
+      
+      // Create new user via API
+      const createResponse = await fetch('/api/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           telegramId: telegramUser.telegramId,
           firstName: telegramUser.firstName,
-          lastName: telegramUser.lastName,
-          username: telegramUser.username,
-          photoUrl: telegramUser.photoUrl,
-          referralCode: newReferralCode,
-          referredBy: referralCode
-        };
+          lastName: telegramUser.lastName || null,
+          username: telegramUser.username || null,
+          photoUrl: telegramUser.photoUrl || null,
+          referralCode: uniqueReferralCode,
+          referredBy: referralCode || null
+        }),
+      });
+      
+      if (createResponse.ok) {
+        const newUser = await createResponse.json();
+        console.log('New user created:', newUser);
         
-        console.log('Creating user with data via API:', userData);
-        
-        const createResponse = await fetch('/api/users', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(userData),
-        });
-        
-        if (createResponse.ok) {
-          const createdUser = await createResponse.json();
-          console.log('User created via API:', createdUser);
-          return createdUser;
-        } else {
-          console.warn('Failed to create user via API, will fall back to Firebase');
+        // Process referral if provided
+        if (referralCode) {
+          try {
+            const referralResponse = await fetch('/api/referrals', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                referralCode,
+                referredUserId: newUser.id
+              }),
+            });
+            
+            if (referralResponse.ok) {
+              console.log('Referral processed successfully');
+            } else {
+              console.warn('Failed to process referral:', await referralResponse.text());
+            }
+          } catch (referralError) {
+            console.error('Error processing referral:', referralError);
+          }
         }
+        
+        return newUser;
+      } else {
+        console.error('Failed to create user:', createResponse.status, await createResponse.text());
+        return null;
       }
-    } catch (apiError) {
-      console.warn('API error, falling back to Firebase:', apiError);
-    }
-    
-    // Fallback to Firebase if API fails
-    console.log('Looking up user in Firebase by Telegram ID:', telegramUser.telegramId);
-    let user = await getUserByTelegramId(telegramUser.telegramId);
-    
-    console.log('getUserByTelegramId returned:', user);
-    
-    // If user doesn't exist, create a new one
-    if (!user) {
-      console.log('User not found in Firebase, creating new user');
-      const newReferralCode = nanoid(8);
-      
-      const userData = {
-        telegramId: telegramUser.telegramId,
-        firstName: telegramUser.firstName,
-        lastName: telegramUser.lastName,
-        username: telegramUser.username,
-        photoUrl: telegramUser.photoUrl,
-        referralCode: newReferralCode,
-        referredBy: referralCode
-      };
-      
-      console.log('Creating user with data:', userData);
-      user = await createUser(userData);
-      console.log('User created:', user);
     } else {
-      console.log('Existing user found in Firebase');
+      console.error('Error fetching user:', response.status, await response.text());
+      return null;
     }
-    
-    return user;
   } catch (error) {
-    console.error('Error authenticating Telegram user:', error);
+    console.error('Authentication error:', error);
     return null;
   }
+}
+
+// Generate a unique referral code
+function generateReferralCode(length = 6): string {
+  // Generate a random alpha-numeric code
+  return nanoid(length);
 }
 
 // Show an alert using Telegram's native UI
