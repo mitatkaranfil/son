@@ -5,7 +5,7 @@ import passport from "passport";
 import { registerRoutes } from "./routes.ts";
 import { registerViteDevServer, serveStatic } from "./vite.ts";
 import { authRoutes, createAdminUser } from "./auth.ts";
-import { log } from "./db.ts";
+import { log, initializeDatabase } from "./db.ts";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -42,6 +42,8 @@ app.use(
     cookie: {
       secure: process.env.NODE_ENV === "production",
       maxAge: 24 * 60 * 60 * 1000, // 1 gün
+      httpOnly: true,
+      sameSite: process.env.NODE_ENV === "production" ? "lax" : "none",
     },
   })
 );
@@ -52,6 +54,14 @@ app.use(passport.session());
 
 // Auth routes
 app.use("/api/auth", authRoutes);
+
+// Korumalı rotalar için middleware
+function isAuthenticated(req: Request, res: Response, next: NextFunction) {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.redirect('/login');
+}
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -88,39 +98,74 @@ app.get("/health", (_req, res) => {
   res.status(200).send({ status: "OK", timestamp: new Date().toISOString() });
 });
 
+// Ana sayfa yönlendirme
+app.get('/', (req: Request, res: Response) => {
+  // Kullanıcı oturum açmışsa dashboard'a, değilse login sayfasına yönlendir
+  if (req.isAuthenticated()) {
+    res.redirect('/dashboard');
+  } else {
+    res.redirect('/login');
+  }
+});
+
+// Dashboard yönlendirme
+app.get('/dashboard', isAuthenticated, (req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, 'client-dist', 'index.html'));
+});
+
+// Login sayfası
+app.get('/login', (req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, 'client-dist', 'index.html'));
+});
+
+// Telegram yönlendirme
+app.get('/telegram', (req: Request, res: Response) => {
+  res.redirect('/login');
+});
+
+// API rotaları
+app.use('/api', isAuthenticated);
+
 async function startServer() {
-  // Vite veya statik dosya sunucusu kur
-  if (process.env.NODE_ENV !== "production") {
-    try {
-      await registerViteDevServer(app);
-    } catch (error) {
-      console.error("Vite server başlatılamadı, statik dosya sunucusuna geçiliyor:", error);
+  try {
+    // Veritabanını başlat
+    const dbInitialized = await initializeDatabase();
+    if (!dbInitialized) {
+      throw new Error('Veritabanı başlatılamadı');
+    }
+
+    // İlk admin kullanıcısını oluştur
+    const adminUser = await createAdminUser(ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_TELEGRAM_ID);
+    if (adminUser) {
+      log('Admin kullanıcısı başarıyla oluşturuldu');
+    } else {
+      log('Admin kullanıcısı oluşturulamadı');
+    }
+
+    // Vite veya statik dosya sunucusu kur
+    if (process.env.NODE_ENV !== "production") {
+      try {
+        await registerViteDevServer(app);
+      } catch (error) {
+        console.error("Vite server başlatılamadı, statik dosya sunucusuna geçiliyor:", error);
+        serveStatic(app);
+      }
+    } else {
+      // Üretim ortamında statik dosyaları sun
       serveStatic(app);
     }
-  } else {
-    // Üretim ortamında statik dosyaları sun
-    serveStatic(app);
-  }
 
-  // API rotalarını kaydet
-  const server = await registerRoutes(app);
-  
-  // İlk admin kullanıcısını oluştur
-  try {
-    const adminUser = await createAdminUser(
-      ADMIN_USERNAME,
-      ADMIN_PASSWORD,
-      ADMIN_TELEGRAM_ID
-    );
-    log(`Admin kullanıcısı oluşturuldu veya güncellendi: ${adminUser?.firstName} (${adminUser?.username})`);
+    // API rotalarını kaydet
+    const server = await registerRoutes(app);
+
+    // Sunucuyu başlat
+    server.listen(process.env.PORT || 3000, () => {
+      console.log(`[express] serving on port ${process.env.PORT || 3000}`);
+    });
   } catch (error) {
-    log(`Admin kullanıcısı oluşturulurken hata: ${error}`);
+    log(`Sunucu başlatılamadı: ${error instanceof Error ? error.message : String(error)}`);
+    throw error;
   }
-
-  // Sunucuyu başlat
-  server.listen(process.env.PORT || 3000, () => {
-    console.log(`[express] serving on port ${process.env.PORT || 3000}`);
-  });
 }
 
 startServer().catch((err) => {
