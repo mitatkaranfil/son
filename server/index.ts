@@ -1,6 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import { log } from "./vite";
 
 // Uncaught hataları yakala
 process.on('uncaughtException', (error) => {
@@ -64,13 +64,21 @@ app.get("/health", (_req, res) => {
       console.error("App error:", err);
     });
 
-    // importantly only setup vite in development and after
-    // setting up all the other routes so the catch-all route
-    // doesn't interfere with the other routes
+    // Dinamik olarak geliştirme/üretim moduna göre uygun modülleri yükleyelim
     if (app.get("env") === "development") {
-      await setupVite(app, server);
+      try {
+        // Sadece development modunda vite modülünü yükle
+        const { setupVite } = await import("./vite");
+        await setupVite(app, server);
+        log("Vite development server başarıyla kuruldu");
+      } catch (error) {
+        console.error("Vite server setup error:", error);
+        log("DEV: Vite sunucusu kurulamadı, statik dosyalara düşülüyor");
+        await loadStaticServer(app);
+      }
     } else {
-      serveStatic(app);
+      // Üretim ortamında sadece statik dosyaları sun
+      await loadStaticServer(app);
     }
 
     // Use environment variable PORT or default to 3000
@@ -90,3 +98,30 @@ app.get("/health", (_req, res) => {
     console.error("Server startup error:", error);
   }
 })();
+
+// Statik sunucu yükleme fonksiyonu - vite modülünü lazily load eder
+async function loadStaticServer(app: express.Express) {
+  try {
+    const { serveStatic } = await import("./vite");
+    serveStatic(app);
+    log("Static server başarıyla kuruldu");
+  } catch (error) {
+    console.error("Static server setup error:", error);
+    
+    // En basit fallback
+    const path = await import("path");
+    const { fileURLToPath } = await import("url");
+    const { dirname } = await import("path");
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    
+    const staticPath = path.resolve(__dirname, "public");
+    log(`Fallback static server, serving from: ${staticPath}`);
+    
+    app.use(express.static(staticPath));
+    app.use("*", (_req, res) => {
+      res.status(200).send("Application is running in fallback mode");
+    });
+  }
+}
