@@ -13,8 +13,13 @@ RUN npm install --legacy-peer-deps --no-audit
 # Kaynak kodunu kopyala
 COPY . .
 
-# Client uygulamasını derle
-RUN npm run build:client
+# Client build öncesi ortam değişkenlerini ayarla
+ENV NODE_ENV=production
+ENV DEBUG=vite:*
+ENV VITE_CJS_TRACE=1
+
+# Client uygulamasını derle (tüm çıktıları göstermek için)
+RUN npm run build:client || (echo "Client build failed" && cat npm-debug.log && exit 1)
 
 # Server uygulamasını derle
 RUN npm run build:server
