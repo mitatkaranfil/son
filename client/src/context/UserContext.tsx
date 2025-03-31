@@ -24,6 +24,7 @@ export const UserContext = createContext<UserContextType>({
 
 interface UserProviderProps {
   children: ReactNode;
+  telegramMode?: boolean;
 }
 
 // Fallback kullanıcı oluştur
@@ -53,7 +54,7 @@ function getUrlParameter(name: string): string | null {
   return results === null ? null : decodeURIComponent(results[1].replace(/\+/g, ' '));
 }
 
-export const UserProvider = ({ children }: UserProviderProps) => {
+export const UserProvider = ({ children, telegramMode = false }: UserProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,11 +72,14 @@ export const UserProvider = ({ children }: UserProviderProps) => {
         setIsLoading(true);
         console.log("UserContext - Initializing user, attempt:", initAttempts + 1);
         console.log("UserContext - window.location.href:", window.location.href);
+        console.log("UserContext - telegramMode:", telegramMode);
         
         // Test için manuel kullanıcı oluşturmayı zorla
         const forceTestUser = getUrlParameter('forceTestUser') === 'true';
-        if (forceTestUser) {
-          console.log("UserContext - Forced test user mode enabled");
+        
+        // Telegram kullanılmak istenmiyor ve telegramMode aktif değilse test kullanıcısı kullan
+        if (!telegramMode || forceTestUser) {
+          console.log("UserContext - Using test user mode (telegramMode is disabled or forceTestUser is enabled)");
           const fallbackUser = createFallbackUser();
           setUser(fallbackUser);
           setUseFallback(true);
