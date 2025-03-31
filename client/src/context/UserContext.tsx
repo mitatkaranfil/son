@@ -117,9 +117,28 @@ export const UserProvider = ({ children }: UserProviderProps) => {
         if (!telegramUser) {
           console.log("UserContext - Checking Telegram WebApp directly");
           
-          // Telegram WebApp kontrolü
+          // Tüm window nesnelerini kontrol et
+          console.log("UserContext - All window properties:", Object.keys(window));
+          
+          // Global telegram değişkeni kontrolü
+          console.log("UserContext - window.Telegram exists:", !!window.Telegram);
+          console.log("UserContext - window.telegram exists:", !!window.telegram);
+          console.log("UserContext - window.TelegramWebApp exists:", !!window.TelegramWebApp);
+          
+          // Telegram nesnesinin içeriğini loglayalım
+          if (window.Telegram) {
+            console.log("UserContext - window.Telegram keys:", Object.keys(window.Telegram));
+          }
+          
+          // Telegram.WebApp kontrolü
           if (window.Telegram && window.Telegram.WebApp) {
             console.log("UserContext - window.Telegram.WebApp exists");
+            console.log("UserContext - window.Telegram.WebApp keys:", Object.keys(window.Telegram.WebApp));
+            
+            // Tüm initDataUnsafe özelliklerini kontrol et
+            if (window.Telegram.WebApp.initDataUnsafe) {
+              console.log("UserContext - initDataUnsafe keys:", Object.keys(window.Telegram.WebApp.initDataUnsafe));
+            }
             
             if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
               console.log("UserContext - window.Telegram.WebApp.initDataUnsafe.user exists");
@@ -135,7 +154,36 @@ export const UserProvider = ({ children }: UserProviderProps) => {
               };
             } else {
               console.log("UserContext - No user data in window.Telegram.WebApp.initDataUnsafe");
-              console.log("UserContext - initDataUnsafe:", JSON.stringify(window.Telegram.WebApp.initDataUnsafe));
+              
+              // initData string kontrol et
+              if (window.Telegram.WebApp.initData) {
+                console.log("UserContext - initData exists:", window.Telegram.WebApp.initData);
+                try {
+                  // initData'dan kullanıcı bilgilerini çıkarmayı dene
+                  const params = new URLSearchParams(window.Telegram.WebApp.initData);
+                  const userParam = params.get('user');
+                  if (userParam) {
+                    const userData = JSON.parse(userParam);
+                    console.log("UserContext - User parsed from initData:", userData);
+                    
+                    if (userData && userData.id) {
+                      telegramUser = {
+                        telegramId: userData.id.toString(),
+                        firstName: userData.first_name || userData.firstName || "User",
+                        lastName: userData.last_name || userData.lastName,
+                        username: userData.username,
+                        photoUrl: userData.photo_url || userData.photoUrl
+                      };
+                    }
+                  }
+                } catch (parseErr) {
+                  console.error("UserContext - Error parsing initData:", parseErr);
+                }
+              }
+              
+              if (!telegramUser) {
+                console.log("UserContext - initDataUnsafe:", JSON.stringify(window.Telegram.WebApp.initDataUnsafe));
+              }
             }
           } else {
             console.log("UserContext - window.Telegram.WebApp does not exist");
@@ -278,16 +326,12 @@ export const UserProvider = ({ children }: UserProviderProps) => {
         console.error("UserContext - Error initializing user:", err);
         setError("Failed to initialize user. Using fallback mode.");
         
-        // Error durumunda sadece Development ortamında fallback kullanıcı oluştur
-        if (isDevelopment) {
-          console.log("UserContext - Creating fallback user after error");
-          const fallbackUser = createFallbackUser();
-          setUser(fallbackUser);
-          setUseFallback(true);
-        } else {
-          // Üretim ortamında hata mesajı göster ve kullanıcı null bırak
-          setError("Telegram kullanıcı bilgilerine erişilemedi. Lütfen tekrar deneyin.");
-        }
+        // Üretim ortamında da test kullanıcısı oluşturalım
+        console.log("UserContext - Creating fallback user after error");
+        const fallbackUser = createFallbackUser();
+        setUser(fallbackUser);
+        setUseFallback(true);
+        setError("Telegram bağlantısı kurulamadı. Test kullanıcısı ile devam ediliyor.");
       } finally {
         console.log("UserContext - User initialization completed or using fallback");
         setIsLoading(false);
