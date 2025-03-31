@@ -110,16 +110,37 @@ export function isTelegramWebApp(): boolean {
     console.log('isTelegramWebApp check - window.Telegram exists:', hasTelegramObject);
     console.log('isTelegramWebApp check - window.Telegram.WebApp exists:', hasWebAppObject);
     
+    // Telegram WebApp'in testi için basit bir yöntem: 
+    // - URL'de Telegram parametreleri var mı kontrol et
+    const url = window.location.href;
+    const isTelegramDomain = url.includes('t.me') || url.includes('telegram.org');
+    const hasWebAppParams = url.includes('tgWebAppData') || url.includes('tgWebAppVersion');
+    
+    console.log('URL telegram domain:', isTelegramDomain);
+    console.log('URL has WebApp params:', hasWebAppParams);
+    
     // Determine if we're in development or production
     const isDevelopment = import.meta.env.DEV;
     
     if (isDevelopment) {
       // In development, we'll allow the app to work outside Telegram
+      console.log('Development mode: Assuming WebApp environment regardless of actual environment');
       return true;
     }
     
-    // In production, only return true if actually in Telegram WebApp
-    return hasWebAppObject;
+    // In production, be more precise about detection
+    if (hasTelegramObject && hasWebAppObject) {
+      console.log('Production: Telegram WebApp detected via window.Telegram.WebApp');
+      return true;
+    }
+    
+    if (isTelegramDomain || hasWebAppParams) {
+      console.log('Production: Telegram WebApp detected via URL parameters');
+      return true;
+    }
+    
+    console.log('Production: Not in Telegram WebApp environment');
+    return false;
   } catch (error) {
     console.warn('Error checking Telegram WebApp:', error);
     // Return true for development, false for production
@@ -185,12 +206,26 @@ export function getTelegramUser(): {
     console.log('window.Telegram exists:', !!window.Telegram);
     console.log('window.Telegram?.WebApp exists:', !!window.Telegram?.WebApp);
     console.log('initDataUnsafe exists:', !!window.Telegram?.WebApp?.initDataUnsafe);
-    console.log('user exists:', !!window.Telegram?.WebApp?.initDataUnsafe?.user);
+    
+    // Daha detaylı WebApp kontrolleri
+    if (window.Telegram?.WebApp) {
+      console.log('WebApp init data:', JSON.stringify(window.Telegram.WebApp.initDataUnsafe));
+      console.log('user exists:', !!window.Telegram?.WebApp?.initDataUnsafe?.user);
+      
+      if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
+        console.log('Telegram user found:', JSON.stringify(window.Telegram.WebApp.initDataUnsafe.user));
+      } else {
+        console.log('No Telegram user in initDataUnsafe');
+      }
+    } else {
+      console.log('WebApp object not available');
+    }
     
     // Determine if we're in development or production environment
     const isDevelopment = import.meta.env.DEV;
     
-    if (isDevelopment && (!window.Telegram?.WebApp?.initDataUnsafe?.user)) {
+    // Development ortamında her zaman test kullanıcısı kullan
+    if (isDevelopment) {
       // Development environment - use test data
       const testUser = {
         telegramId: "123456789",

@@ -52,6 +52,9 @@ export const UserProvider = ({ children }: UserProviderProps) => {
   const [activeBoosts, setActiveBoosts] = useState<UserBoost[]>([]);
   const [initAttempts, setInitAttempts] = useState(0);
   const [useFallback, setUseFallback] = useState(false);
+  
+  // DEV ortamında olup olmadığımızı kontrol et
+  const isDevelopment = import.meta.env?.DEV === true;
 
   // Initialize user from Telegram
   useEffect(() => {
@@ -63,6 +66,16 @@ export const UserProvider = ({ children }: UserProviderProps) => {
         // Get URL parameters for referral
         const urlParams = new URLSearchParams(window.location.search);
         const referralCode = urlParams.get("ref");
+        
+        // Development ortamında her zaman fallback kullanıcısını kullan
+        if (isDevelopment) {
+          console.log("Development ortamında fallback kullanıcısı kullanılıyor");
+          const fallbackUser = createFallbackUser();
+          setUser(fallbackUser);
+          setUseFallback(true);
+          setIsLoading(false);
+          return;
+        }
         
         if (!useFallback) {
           console.log("UserContext - Attempting Telegram authentication");
