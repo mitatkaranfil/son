@@ -13,6 +13,7 @@ RUN apk add --no-cache bash
 
 # Paket dosyalarını kopyala
 COPY package*.json ./
+COPY tsconfig.json ./
 
 # Client build için bağımlılıkları yükle
 RUN npm config set loglevel warn \
@@ -24,6 +25,7 @@ COPY . .
 
 # Dosya sistemini kontrol et
 RUN echo "Listing server directory:" && ls -la server/
+RUN echo "Listing shared directory:" && ls -la shared/
 
 # Client build öncesi ortam değişkenlerini ayarla
 ENV NODE_ENV=production
@@ -45,9 +47,13 @@ WORKDIR /app
 ENV NODE_OPTIONS="--max-old-space-size=512"
 ENV NODE_ENV=production
 ENV PORT=8080
+# TSX için path ayarları
+ENV TSX_TSCONFIG_PATH="/app/tsconfig.json"
+ENV NODE_PATH=/app
 
 # Paket dosyalarını kopyala
 COPY package*.json ./
+COPY tsconfig.json ./
 
 # Bağımlılıkları yükle
 RUN npm config set loglevel warn \
@@ -55,13 +61,15 @@ RUN npm config set loglevel warn \
     && npm install -g tsx \
     && npm cache clean --force
 
-# Server klasörünü kopyala - tüm dosyalar dahil
-COPY --from=builder /app/server/*.ts ./server/
+# Kaynak kodunu kopyala - tam bir kopyalama yapmak için ilk aşamadaki tüm dizini kopyalıyoruz
+COPY --from=builder /app/server ./server
 COPY --from=builder /app/shared ./shared
 COPY --from=builder /app/client-dist ./client-dist
 
 # Kopyalanan dosyaları kontrol et
-RUN ls -la server/
+RUN echo "Listing root directory:" && ls -la
+RUN echo "Listing server directory:" && ls -la server/
+RUN echo "Listing shared directory:" && ls -la shared/
 
 # Node debugger için bağlantı noktasını aç
 EXPOSE 9229
@@ -69,4 +77,4 @@ EXPOSE 9229
 EXPOSE 8080
 
 # Uygulamayı TSX ile başlat (TypeScript dosyalarını doğrudan çalıştırma)
-CMD ["tsx", "server/index.ts"] 
+CMD ["tsx", "--tsconfig", "/app/tsconfig.json", "server/index.ts"] 

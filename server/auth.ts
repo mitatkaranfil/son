@@ -3,7 +3,7 @@ import passport from 'passport';
 import { Strategy as LocalStrategy } from 'passport-local';
 import bcrypt from 'bcryptjs';
 import { storage } from './storage.ts';
-import { User } from '@shared/schema';
+import { User } from '../shared/schema.ts';
 import { z } from "zod";
 import session from "express-session";
 

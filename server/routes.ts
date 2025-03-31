@@ -8,7 +8,7 @@ import {
   insertBoostTypeSchema,
   insertUserBoostSchema,
   insertReferralSchema
-} from "@shared/schema";
+} from "../shared/schema.ts";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { nanoid } from "nanoid";

@@ -7,7 +7,7 @@ import {
   boostTypes, BoostType, InsertBoostType,
   userBoosts, UserBoost, InsertUserBoost,
   referrals, Referral, InsertReferral
-} from "@shared/schema";
+} from "../shared/schema.ts";
 import { IStorage } from "./storage.ts";
 
 // Neon.tech PostgreSQL veritabanına bağlanan bir IStorage implementasyonu
