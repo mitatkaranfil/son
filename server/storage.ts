@@ -522,4 +522,20 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// Neon.tech veritabanını kullanmak için import et
+import { NeonStorage } from './db-storage';
+
+// Environment'e göre doğru storage'ı seç
+let storage: IStorage;
+
+// Üretim ortamında Neon.tech veritabanını kullan
+// Geliştirme ortamında bellek içi depolama kullan
+if (process.env.NODE_ENV === 'production') {
+  console.log('Using Neon.tech PostgreSQL storage in production');
+  storage = new NeonStorage();
+} else {
+  console.log('Using in-memory storage for development');
+  storage = new MemStorage();
+}
+
+export { storage };
