@@ -21,6 +21,9 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      external: ['firebase/app', 'firebase/firestore', 'firebase/analytics'],
+    }
   },
   // Railway'de debug için logları ekstra açalım
   logLevel: "info",
