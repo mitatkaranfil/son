@@ -67,7 +67,38 @@ export const UserProvider = ({ children }: UserProviderProps) => {
         const urlParams = new URLSearchParams(window.location.search);
         const referralCode = urlParams.get("ref");
         
-        // Development ortamında her zaman fallback kullanıcısını kullan
+        // Her zaman önce gerçek Telegram kullanıcısını almaya çalışalım
+        console.log("UserContext - Attempting Telegram authentication");
+        // Authenticate with Telegram
+        const authenticatedUser = await authenticateTelegramUser(referralCode || undefined);
+        
+        console.log("UserContext - Authentication result:", authenticatedUser ? "Success" : "Failed");
+        
+        if (authenticatedUser) {
+          setUser(authenticatedUser);
+          console.log("UserContext - User set:", authenticatedUser);
+          
+          // Load active boosts
+          await loadUserBoosts(authenticatedUser);
+          
+          // Check for mining rewards
+          await checkAndClaimMiningRewards(authenticatedUser);
+          
+          setIsLoading(false);
+          return; // Başarılı olduğumuz için fonksiyondan çık
+        }
+        
+        console.error("UserContext - Authentication returned null user");
+        
+        // If we failed to authenticate but have made less than 3 attempts,
+        // we'll try again in a moment (to give Telegram WebApp time to initialize)
+        if (initAttempts < 2) {
+          console.log(`UserContext - Retrying authentication (attempt ${initAttempts + 1}/3)`);
+          setInitAttempts(prev => prev + 1);
+          return; // Exit without setting isLoading to false
+        }
+        
+        // Development ortamında ve 3 denemeden sonra hala başarısız
         if (isDevelopment) {
           console.log("Development ortamında fallback kullanıcısı kullanılıyor");
           const fallbackUser = createFallbackUser();
@@ -77,53 +108,22 @@ export const UserProvider = ({ children }: UserProviderProps) => {
           return;
         }
         
-        if (!useFallback) {
-          console.log("UserContext - Attempting Telegram authentication");
-          // Authenticate with Telegram
-          const authenticatedUser = await authenticateTelegramUser(referralCode || undefined);
-          
-          console.log("UserContext - Authentication result:", authenticatedUser ? "Success" : "Failed");
-          
-          if (authenticatedUser) {
-            setUser(authenticatedUser);
-            console.log("UserContext - User set:", authenticatedUser);
-            
-            // Load active boosts
-            await loadUserBoosts(authenticatedUser);
-            
-            // Check for mining rewards
-            await checkAndClaimMiningRewards(authenticatedUser);
-            
-            setIsLoading(false);
-            return; // Başarılı olduğumuz için fonksiyondan çık
-          }
-          
-          console.error("UserContext - Authentication returned null user");
-          
-          // If we failed to authenticate but have made less than 3 attempts,
-          // we'll try again in a moment (to give Telegram WebApp time to initialize)
-          if (initAttempts < 2) {
-            console.log(`UserContext - Retrying authentication (attempt ${initAttempts + 1}/3)`);
-            setInitAttempts(prev => prev + 1);
-            return; // Exit without setting isLoading to false
-          }
-        }
-        
-        // Telegram authentication failed repeatedly, use fallback user
-        console.log("UserContext - Using fallback user after authentication failures");
-        const fallbackUser = createFallbackUser();
-        setUser(fallbackUser);
-        setUseFallback(true);
-        
+        // Üretim ortamında ve hala kullanıcı alınamadı
+        throw new Error("Authentication failed after multiple attempts");
       } catch (err) {
         console.error("UserContext - Error initializing user:", err);
         setError("Failed to initialize user. Using fallback mode.");
         
-        // Error durumunda fallback kullanıcı oluştur
-        console.log("UserContext - Creating fallback user after error");
-        const fallbackUser = createFallbackUser();
-        setUser(fallbackUser);
-        setUseFallback(true);
+        // Error durumunda sadece Development ortamında fallback kullanıcı oluştur
+        if (isDevelopment) {
+          console.log("UserContext - Creating fallback user after error");
+          const fallbackUser = createFallbackUser();
+          setUser(fallbackUser);
+          setUseFallback(true);
+        } else {
+          // Üretim ortamında hata mesajı göster ve kullanıcı null bırak
+          setError("Telegram kullanıcı bilgilerine erişilemedi. Lütfen tekrar deneyin.");
+        }
       } finally {
         console.log("UserContext - User initialization completed or using fallback");
         setIsLoading(false);

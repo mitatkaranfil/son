@@ -100,6 +100,14 @@ declare global {
   }
 }
 
+// URL parametrelerinden Telegram bilgileri var mı kontrol et
+function getUrlParameter(name: string): string | null {
+  name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+  const regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+  const results = regex.exec(location.search);
+  return results === null ? null : decodeURIComponent(results[1].replace(/\+/g, ' '));
+}
+
 // Check if we are in a Telegram WebApp environment
 export function isTelegramWebApp(): boolean {
   try {
@@ -109,14 +117,6 @@ export function isTelegramWebApp(): boolean {
     
     console.log('isTelegramWebApp check - window.Telegram exists:', hasTelegramObject);
     console.log('isTelegramWebApp check - window.Telegram.WebApp exists:', hasWebAppObject);
-    
-    // URL parametrelerinden Telegram bilgileri var mı kontrol et
-    function getUrlParameter(name: string): string | null {
-      name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
-      const regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
-      const results = regex.exec(location.search);
-      return results === null ? null : decodeURIComponent(results[1].replace(/\+/g, ' '));
-    }
     
     // Query params'da tgWebAppData varsa, bunları window.Telegram'a aktaralım
     const tgWebAppData = getUrlParameter('tgWebAppData');
@@ -131,7 +131,6 @@ export function isTelegramWebApp(): boolean {
           WebApp: {
             initData: tgWebAppData,
             initDataUnsafe: JSON.parse(decodeURIComponent(tgWebAppData)),
-            version: tgWebAppVersion || '6.0',
             ready: () => console.log('Manual WebApp ready called'),
             expand: () => console.log('Manual WebApp expand called'),
             sendData: (data: string) => console.log('Manual WebApp sendData called with:', data),
@@ -250,6 +249,18 @@ export function getTelegramUser(): {
       
       if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
         console.log('Telegram user found:', JSON.stringify(window.Telegram.WebApp.initDataUnsafe.user));
+        
+        // Telegram'dan gerçekten kullanıcı bilgisi alabildik, bunu kullanalım
+        const user = window.Telegram.WebApp.initDataUnsafe.user;
+        console.log('Telegram user data found:', user);
+
+        return {
+          telegramId: user.id.toString(),
+          firstName: user.first_name,
+          lastName: user.last_name,
+          username: user.username,
+          photoUrl: user.photo_url
+        };
       } else {
         console.log('No Telegram user in initDataUnsafe');
       }
@@ -257,12 +268,14 @@ export function getTelegramUser(): {
       console.log('WebApp object not available');
     }
     
-    // Determine if we're in development or production environment
+    // Bu noktaya kadar gerçek Telegram kullanıcı verisi elde edemedik
+    
+    // Test modunda mıyız?
     const isDevelopment = import.meta.env.DEV;
     
-    // Development ortamında her zaman test kullanıcısı kullan
+    // Development ortamında fallback kullanıcısı kullan
     if (isDevelopment) {
-      // Development environment - use test data
+      console.log('Using test user data for development because real Telegram user not found');
       const testUser = {
         telegramId: "123456789",
         firstName: "Test",
@@ -270,26 +283,12 @@ export function getTelegramUser(): {
         username: "testuser",
         photoUrl: "https://via.placeholder.com/100"
       };
-      console.log('Using test user data for development');
       return testUser;
     }
     
-    // Production or development with real Telegram WebApp
-    if (!isTelegramWebApp() || !window.Telegram?.WebApp?.initDataUnsafe?.user) {
-      console.log('Not in Telegram WebApp or user data unavailable');
-      return null;
-    }
-
-    const user = window.Telegram.WebApp.initDataUnsafe.user;
-    console.log('Telegram user data found:', user);
-
-    return {
-      telegramId: user.id.toString(),
-      firstName: user.first_name,
-      lastName: user.last_name,
-      username: user.username,
-      photoUrl: user.photo_url
-    };
+    // Üretim ortamında ve kullanıcı bulunamadı
+    console.log('Not in Telegram WebApp or user data unavailable');
+    return null;
   } catch (error) {
     console.error('Error getting Telegram user:', error);
     return null;
