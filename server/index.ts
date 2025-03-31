@@ -124,7 +124,16 @@ app.get('/telegram', (req: Request, res: Response) => {
 });
 
 // API rotaları
-app.use('/api', isAuthenticated);
+import apiRouter from './routes.ts';
+app.use('/api', isAuthenticated, apiRouter);
+
+// API için sağlık kontrolü
+app.get('/health', (_req, res) => {
+  res.status(200).send({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// Tüm diğer rotaları statik dosya sunucusuna bırakın
+// Bu kısım serveStatic içinde yapılacak
 
 export async function startServer() {
   try {
@@ -158,9 +167,6 @@ export async function startServer() {
     } catch (error) {
       console.log("Admin user already exists or creation failed:", error);
     }
-
-    // Register API routes
-    await registerRoutes(app);
 
     return server;
   } catch (error) {

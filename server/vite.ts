@@ -103,13 +103,9 @@ export async function setupVite(app: Express, server: Server) {
 export function serveStatic(app: Express) {
   try {
     const distPath = path.resolve(__dirname, "..", "client-dist");
-    console.log("Statik dosya yolu:", distPath);
-    console.log("Klasör mevcut mu:", fs.existsSync(distPath));
-
+    
     if (!fs.existsSync(distPath)) {
       log(`UYARI: Build klasörü bulunamadı: ${distPath}`);
-      
-      // Fallback middleware, 404 sayısını azaltmak için
       app.use(express.static(path.resolve(__dirname, "..", "public")));
       app.use("*", (_req, res) => {
         res.status(404).send("Not found - Build directory is missing");
@@ -118,25 +114,17 @@ export function serveStatic(app: Express) {
     }
 
     log(`Statik dosyalar sunuluyor: ${distPath}`);
+    
+    // Statik dosyaları sunmak için
     app.use(express.static(distPath));
 
-    // Login sayfası için özel yönlendirme
-    app.get("/login", (_req, res) => {
-      const indexPath = path.resolve(distPath, "index.html");
-      console.log("Login isteği alındı, index.html yolu:", indexPath);
-      console.log("Dosya mevcut mu:", fs.existsSync(indexPath));
-      res.sendFile(indexPath);
-    });
-
-    // Diğer sayfalar için fallback
-    app.use("*", (_req, res) => {
-      console.log("Yönlendirme: index.html'e yönlendiriliyor");
-      res.sendFile(path.resolve(distPath, "index.html"));
+    // Tüm rotaları index.html'e yönlendir (SPA yönlendirmesi için önemli)
+    app.get('*', (req, res) => {
+      log(`SPA yönlendirmesi: ${req.originalUrl} -> index.html`);
+      res.sendFile(path.join(distPath, 'index.html'));
     });
   } catch (error) {
     console.error("Static serving error:", error);
-    
-    // En basit fallback
     app.use("*", (_req, res) => {
       res.status(500).send("Server configuration error");
     });
