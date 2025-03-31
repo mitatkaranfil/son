@@ -63,12 +63,98 @@ export const UserProvider = ({ children }: UserProviderProps) => {
         setIsLoading(true);
         console.log("UserContext - Initializing user, attempt:", initAttempts + 1);
         
+        // Telegram WebApp doğrudan kontrol
+        console.log("UserContext - Checking Telegram WebApp directly");
+        
+        let telegramUser = null;
+        
+        // Telegram WebApp kontrolü
+        if (window.Telegram && window.Telegram.WebApp) {
+          console.log("UserContext - window.Telegram.WebApp exists");
+          
+          if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+            console.log("UserContext - window.Telegram.WebApp.initDataUnsafe.user exists");
+            const user = window.Telegram.WebApp.initDataUnsafe.user;
+            console.log("UserContext - User from Telegram:", JSON.stringify(user));
+            
+            telegramUser = {
+              telegramId: user.id.toString(),
+              firstName: user.first_name,
+              lastName: user.last_name,
+              username: user.username,
+              photoUrl: user.photo_url
+            };
+          }
+        }
+        
         // Get URL parameters for referral
         const urlParams = new URLSearchParams(window.location.search);
         const referralCode = urlParams.get("ref");
         
-        // Her zaman önce gerçek Telegram kullanıcısını almaya çalışalım
-        console.log("UserContext - Attempting Telegram authentication");
+        // Eğer doğrudan erişebildiysek, API çağrısını atlayıp kullanıcı verilerini doğrudan kullanalım
+        if (telegramUser) {
+          console.log("UserContext - Using directly acquired Telegram user:", telegramUser);
+          
+          try {
+            // Kullanıcıyı API'de ara
+            const response = await fetch(`/api/users/telegram/${telegramUser.telegramId}`);
+            
+            if (response.ok) {
+              // Kullanıcı bulundu
+              const userData = await response.json();
+              console.log("UserContext - User found in API:", userData);
+              setUser(userData);
+              
+              // Load active boosts
+              await loadUserBoosts(userData);
+              
+              // Check for mining rewards
+              await checkAndClaimMiningRewards(userData);
+              
+            } else if (response.status === 404) {
+              // Kullanıcı yoksa oluştur
+              console.log("UserContext - User not found, creating new user");
+              
+              // Generate a unique referral code for the new user
+              const uniqueReferralCode = Math.random().toString(36).substring(2, 8);
+              
+              // Create new user via API
+              const createResponse = await fetch('/api/users', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  telegramId: telegramUser.telegramId,
+                  firstName: telegramUser.firstName,
+                  lastName: telegramUser.lastName || null,
+                  username: telegramUser.username || null,
+                  photoUrl: telegramUser.photoUrl || null,
+                  referralCode: uniqueReferralCode,
+                  referredBy: referralCode || null
+                }),
+              });
+              
+              if (createResponse.ok) {
+                const newUser = await createResponse.json();
+                console.log("UserContext - New user created:", newUser);
+                setUser(newUser);
+              } else {
+                throw new Error("Failed to create user");
+              }
+            } else {
+              throw new Error(`API error: ${response.status}`);
+            }
+            
+            setIsLoading(false);
+            return;
+          } catch (apiError) {
+            console.error("UserContext - API error:", apiError);
+          }
+        }
+        
+        // Doğrudan erişim başarısız olduysa veya API hatası olduysa, normal yöntemi deneyelim
+        console.log("UserContext - Attempting Telegram authentication via library function");
         // Authenticate with Telegram
         const authenticatedUser = await authenticateTelegramUser(referralCode || undefined);
         
