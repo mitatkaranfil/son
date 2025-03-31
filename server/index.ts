@@ -139,8 +139,8 @@ app.get('/health', (_req, res) => {
 
 export async function startServer() {
   try {
-    // Get port from environment or fallback to 3000
-    const PORT = parseInt(process.env.PORT || '3000');
+    // Get port from environment
+    const PORT = parseInt(process.env.PORT || '8080');
     console.log(`Starting server on port ${PORT}`);
 
     const server = app.listen(PORT, () => {
