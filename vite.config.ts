@@ -22,6 +22,10 @@ export default defineConfig({
     outDir: path.resolve(__dirname, "client/dist"),
     emptyOutDir: true
   },
+  server: {
+    port: 3000,
+    host: true
+  },
   // Railway'de debug için logları ekstra açalım
   logLevel: "info",
   clearScreen: false,
