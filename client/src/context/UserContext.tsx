@@ -122,8 +122,40 @@ export const UserProvider = ({ children }: UserProviderProps) => {
           
           // Global telegram değişkeni kontrolü
           console.log("UserContext - window.Telegram exists:", !!window.Telegram);
-          console.log("UserContext - window.telegram exists:", !!window.telegram);
-          console.log("UserContext - window.TelegramWebApp exists:", !!window.TelegramWebApp);
+          console.log("UserContext - window.telegram exists:", !!(window as any).telegram);
+          console.log("UserContext - window.TelegramWebApp exists:", !!(window as any).TelegramWebApp);
+          
+          // Tüm window telegram nesnelerini dökümanlandır
+          const telegramObjects = Object.getOwnPropertyNames(window).filter(key => 
+            key.toLowerCase().includes('telegram')
+          );
+          console.log("UserContext - All Telegram-related objects:", telegramObjects);
+          
+          // Telegram global object içeriğini detaylı kontrol
+          if (window.Telegram) {
+            console.log("UserContext - window.Telegram keys:", Object.keys(window.Telegram));
+            try {
+              console.log("UserContext - window.Telegram stringified:", JSON.stringify(window.Telegram));
+            } catch (err: any) {
+              console.log("UserContext - Cannot stringify Telegram object:", err?.message || "Unknown error");
+            }
+          }
+          
+          try {
+            // Tarayıcı hafızasındaki tüm window değişkenlerini kontrol et
+            console.log("UserContext - Checking iframe parent for Telegram object");
+            if (window.parent && window.parent !== window) {
+              console.log("UserContext - We are in an iframe, checking parent window");
+              try {
+                // @ts-ignore - Bu erişim bazı güvenlik kısıtlamaları nedeniyle başarısız olabilir
+                console.log("UserContext - Parent has Telegram:", !!(window.parent as any).Telegram);
+              } catch (frameErr: any) {
+                console.log("UserContext - Cannot access parent frame:", frameErr?.message || "Unknown error");
+              }
+            }
+          } catch (windowErr: any) {
+            console.log("UserContext - Error checking window objects:", windowErr?.message || "Unknown error");
+          }
           
           // Telegram nesnesinin içeriğini loglayalım
           if (window.Telegram) {
@@ -322,7 +354,7 @@ export const UserProvider = ({ children }: UserProviderProps) => {
         
         // Üretim ortamında ve hala kullanıcı alınamadı
         throw new Error("Authentication failed after multiple attempts");
-      } catch (err) {
+      } catch (err: any) {
         console.error("UserContext - Error initializing user:", err);
         setError("Failed to initialize user. Using fallback mode.");
         
@@ -352,8 +384,8 @@ export const UserProvider = ({ children }: UserProviderProps) => {
         } else {
           console.error("UserContext - Failed to load boosts from API");
         }
-      } catch (boostErr) {
-        console.error("UserContext - Error loading boosts:", boostErr);
+      } catch (boostErr: any) {
+        console.error("UserContext - Error loading boosts:", boostErr?.message || "Unknown error");
       }
     };
     
@@ -365,13 +397,28 @@ export const UserProvider = ({ children }: UserProviderProps) => {
         try {
           await claimMiningRewards(currentUser);
           console.log("UserContext - Mining rewards claimed");
-        } catch (miningErr) {
-          console.error("UserContext - Error claiming mining rewards:", miningErr);
+        } catch (miningErr: any) {
+          console.error("UserContext - Error claiming mining rewards:", miningErr?.message || "Unknown error");
         }
       }
     };
 
+    // Her zaman fallback kullanıcı oluşturmayı garantilemek için init işlemi
+    const timeoutId = setTimeout(() => {
+      if (isLoading && !user) {
+        console.log("UserContext - Timeout reached. Creating fallback user.");
+        const fallbackUser = createFallbackUser();
+        setUser(fallbackUser);
+        setUseFallback(true);
+        setIsLoading(false);
+        setError("Zaman aşımı nedeniyle test kullanıcısı ile devam ediliyor.");
+      }
+    }, 5000); // 5 saniye sonra timeout
+
     initUser();
+
+    // Cleanup timeout
+    return () => clearTimeout(timeoutId);
   }, [initAttempts]); // Re-run when initAttempts changes
 
   // Check for mining rewards
