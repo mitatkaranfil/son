@@ -3,28 +3,24 @@ FROM node:18
 
 WORKDIR /app
 
-# Increase log level
+# Verbose logging
 ENV NPM_CONFIG_LOGLEVEL=verbose
 
-# Copy package files first
+# Package dosyalarını kopyala
 COPY package*.json ./
-COPY tsconfig.json ./
+COPY tsconfig*.json ./
 
-# Install dependencies with verbose logging
+# Tüm bağımlılıkları yükle (dev bağımlılıkları da dahil)
 RUN npm install --verbose
 
-# Copy the rest of the project
+# Proje dosyalarını kopyala
 COPY . .
 
-# Build the client
+# Client build için gerekli ortam değişkenlerini ayarla
+# Örneğin, eğer build sırasında .env dosyasına ihtiyaç varsa
+# COPY .env ./ 
+
+# Client'ı build et
 RUN npm run build:client
 
-# Set environment variables
-ENV PORT=8080
-ENV NODE_ENV=production
-
-# Expose port
-EXPOSE $PORT
-
-# Start the application
-CMD ["node", "-r", "dotenv/config", "--import", "tsx", "server/index.ts"]
+# Diğer ayarlar...
