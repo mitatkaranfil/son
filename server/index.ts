@@ -136,12 +136,18 @@ async function startServer() {
       throw new Error('Veritabanı başlatılamadı');
     }
 
-    // İlk admin kullanıcısını oluştur
-    const adminUser = await createAdminUser(ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_TELEGRAM_ID);
-    if (adminUser) {
-      log('Admin kullanıcısı başarıyla oluşturuldu');
-    } else {
-      log('Admin kullanıcısı oluşturulamadı');
+    // Admin kullanıcısını oluştur
+    try {
+      const adminUser = await createAdminUser(ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_TELEGRAM_ID);
+      if (adminUser) {
+        log('Admin kullanıcısı başarıyla oluşturuldu/güncellendi');
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('kullanıcı adı zaten kullanılıyor')) {
+        log('Admin kullanıcısı zaten mevcut');
+      } else {
+        log(`Admin kullanıcı oluşturma hatası: ${error instanceof Error ? error.message : JSON.stringify(error)}`);
+      }
     }
 
     // Vite veya statik dosya sunucusu kur

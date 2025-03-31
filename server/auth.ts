@@ -9,7 +9,10 @@ import session from "express-session";
 
 // Local Strategy ile kimlik doğrulama
 passport.use(
-  new LocalStrategy(async (username: string, password: string, done: (err: any, user?: User | false, info?: { message: string }) => void) => {
+  new LocalStrategy({
+    usernameField: 'username',
+    passwordField: 'password'
+  }, async (username: string, password: string, done: (err: any, user?: User | false, info?: { message: string }) => void) => {
     try {
       // Kullanıcı adına göre admin kullanıcıyı bul
       const user = await storage.getUserByUsername(username);
@@ -34,14 +37,17 @@ passport.use(
 );
 
 // Serileştirme ve deserileştirme işlemleri
-passport.serializeUser((user: User, done: (err: any, id?: number) => void) => {
+passport.serializeUser((user: User, done: (err: any, id?: number | undefined) => void) => {
+  if (!user) {
+    return done(new Error('Invalid user'));
+  }
   done(null, user.id);
 });
 
 passport.deserializeUser(async (id: number, done: (err: any, user?: User) => void) => {
   try {
     const user = await storage.getUserById(id);
-    done(null, user || undefined);
+    done(null, user);
   } catch (error) {
     done(error);
   }
@@ -115,7 +121,7 @@ export function isAdmin(req: Request, res: Response, next: NextFunction) {
 }
 
 // Admin kullanıcı oluşturma
-export async function createAdminUser(username: string, password: string, telegramId: string) {
+export async function createAdminUser(username: string, password: string, telegramId: string): Promise<User> {
   try {
     // Şifreyi hashle
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -143,9 +149,7 @@ export async function createAdminUser(username: string, password: string, telegr
       username,
       password: hashedPassword,
       referralCode: `ADMIN-${Math.random().toString(36).substring(2, 8)}`,
-      role: 'admin',
-      last_mining_time: new Date(),
-      created_at: new Date()
+      role: 'admin'
     });
   } catch (error) {
     console.error('Admin kullanıcı oluşturma hatası:', error);

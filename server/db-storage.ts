@@ -1,4 +1,3 @@
-import { eq } from "drizzle-orm";
 import { supabase, log } from "./db.ts";
 import {
   users, User, InsertUser,
@@ -10,6 +9,7 @@ import {
 } from "../shared/schema.ts";
 import { IStorage } from "./storage.ts";
 
+// Supabase veritabanına bağlanan IStorage implementasyonu
 export class SupabaseStorage implements IStorage {
   
   // User methods
@@ -47,24 +47,30 @@ export class SupabaseStorage implements IStorage {
   
   async createUser(userData: InsertUser): Promise<User> {
     try {
-      const { firstname, lastname, ...restData } = userData;
-      
+      // Convert camelCase to snake_case
+      // Sadece veritabanında bulunan alanları gönder
+      const user = {
+        telegram_id: userData.telegramId,
+        firstname: userData.firstname,
+        lastname: userData.lastname,
+        username: userData.username,
+        referral_code: userData.referralCode,
+        role: userData.role,
+        password: userData.password,
+        last_mining_time: new Date().toISOString(),
+        points: 0
+      };
+
       const { data, error } = await supabase
         .from('users')
-        .insert([{
-          ...restData,
-          first_name: firstname,
-          last_name: lastname,
-          last_mining_time: new Date(),
-          created_at: new Date()
-        }])
+        .insert([user])
         .select()
         .single();
 
       if (error) throw error;
       return data;
     } catch (error) {
-      log(`createUser error: ${error instanceof Error ? error.message : String(error)}`);
+      log(`createUser error: ${error instanceof Error ? error.message : JSON.stringify(error)}`);
       throw error;
     }
   }
@@ -78,7 +84,7 @@ export class SupabaseStorage implements IStorage {
         .from('users')
         .update({ 
           points: user.points + pointsToAdd,
-          last_mining_time: new Date()
+          last_mining_time: new Date().toISOString()
         })
         .eq('id', userId);
 
@@ -94,7 +100,7 @@ export class SupabaseStorage implements IStorage {
     try {
       const { error } = await supabase
         .from('users')
-        .update({ last_mining_time: new Date() })
+        .update({ last_mining_time: new Date().toISOString() })
         .eq('id', userId);
 
       if (error) throw error;
@@ -109,10 +115,12 @@ export class SupabaseStorage implements IStorage {
     try {
       const updateData: Partial<User> = { role: role as any };
       
+      // Eğer kullanıcı adı varsa güncelle
       if (username) {
         updateData.username = username;
       }
       
+      // Eğer şifre varsa güncelle
       if (password) {
         updateData.password = password;
       }
@@ -153,7 +161,7 @@ export class SupabaseStorage implements IStorage {
       const { data, error } = await supabase
         .from('users')
         .select('*')
-        .eq('referral_code', referralCode);
+        .eq('referral_code', referralCode);  // snake_case olarak düzeltildi
 
       if (error) throw error;
       return data;
@@ -185,7 +193,7 @@ export class SupabaseStorage implements IStorage {
           .from('tasks')
           .select('*')
           .eq('type', type as "daily" | "weekly" | "special")
-          .eq('is_active', true);
+          .eq('is_active', true);  // isActive -> is_active olarak düzeltildi
 
         if (error) throw error;
         return data;
@@ -193,13 +201,29 @@ export class SupabaseStorage implements IStorage {
       const { data, error } = await supabase
         .from('tasks')
         .select('*')
-        .eq('is_active', true);
+        .eq('is_active', true);  // isActive -> is_active olarak düzeltildi
 
       if (error) throw error;
       return data;
     } catch (error) {
       log(`getTasks error: ${error instanceof Error ? error.message : String(error)}`);
       return [];
+    }
+  }
+  
+  async getTaskById(id: number): Promise<Task | undefined> {
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      log(`getTaskById error: ${error instanceof Error ? error.message : String(error)}`);
+      return undefined;
     }
   }
   
@@ -219,12 +243,12 @@ export class SupabaseStorage implements IStorage {
     }
   }
   
-  async updateTask(taskId: number, taskData: Partial<Task>): Promise<Task | undefined> {
+  async updateTask(id: number, taskData: Partial<Task>): Promise<Task | undefined> {
     try {
       const { data, error } = await supabase
         .from('tasks')
         .update(taskData)
-        .eq('id', taskId)
+        .eq('id', id)
         .select()
         .single();
 
@@ -236,12 +260,12 @@ export class SupabaseStorage implements IStorage {
     }
   }
   
-  async deleteTask(taskId: number): Promise<boolean> {
+  async deleteTask(id: number): Promise<boolean> {
     try {
       const { error } = await supabase
         .from('tasks')
         .delete()
-        .eq('id', taskId);
+        .eq('id', id);
 
       if (error) throw error;
       return true;
@@ -252,23 +276,7 @@ export class SupabaseStorage implements IStorage {
   }
   
   // UserTask methods
-  async createUserTask(userData: InsertUserTask): Promise<UserTask> {
-    try {
-      const { data, error } = await supabase
-        .from('user_tasks')
-        .insert([userData])
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      log(`createUserTask error: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
-    }
-  }
-  
-  async getUserTasks(userId: number): Promise<UserTask[]> {
+  async getUserTasks(userId: number): Promise<(UserTask & { task: Task })[]> {
     try {
       const { data, error } = await supabase
         .from('user_tasks')
@@ -276,19 +284,72 @@ export class SupabaseStorage implements IStorage {
         .eq('user_id', userId);
 
       if (error) throw error;
-      return data;
+      
+      // Her user_task için ilgili task bilgilerini getir
+      const tasks = await Promise.all(
+        data.map(async (userTask) => {
+          const { data: taskData, error: taskError } = await supabase
+            .from('tasks')
+            .select('*')
+            .eq('id', userTask.task_id)
+            .single();
+
+          if (taskError) throw taskError;
+          return { ...userTask, task: taskData };
+        })
+      );
+
+      return tasks;
     } catch (error) {
       log(`getUserTasks error: ${error instanceof Error ? error.message : String(error)}`);
       return [];
     }
   }
   
-  async updateUserTask(taskId: number, userData: Partial<UserTask>): Promise<UserTask | undefined> {
+  async getUserTaskById(userId: number, taskId: number): Promise<UserTask | undefined> {
     try {
       const { data, error } = await supabase
         .from('user_tasks')
-        .update(userData)
-        .eq('id', taskId)
+        .select('*')
+        .eq('user_id', userId)
+        .eq('task_id', taskId)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      log(`getUserTaskById error: ${error instanceof Error ? error.message : String(error)}`);
+      return undefined;
+    }
+  }
+  
+  async createUserTask(userTask: InsertUserTask): Promise<UserTask> {
+    try {
+      const { data, error } = await supabase
+        .from('user_tasks')
+        .insert([userTask])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      log(`createUserTask error: ${error instanceof Error ? error.message : JSON.stringify(error)}`);
+      throw error;
+    }
+  }
+  
+  async updateUserTask(userId: number, taskId: number, progress: number, isCompleted: boolean): Promise<UserTask> {
+    try {
+      const { data, error } = await supabase
+        .from('user_tasks')
+        .update({
+          progress,
+          is_completed: isCompleted,
+          completed_at: isCompleted ? new Date().toISOString() : null
+        })
+        .eq('user_id', userId)
+        .eq('task_id', taskId)
         .select()
         .single();
 
@@ -300,18 +361,42 @@ export class SupabaseStorage implements IStorage {
     }
   }
   
-  async deleteUserTask(taskId: number): Promise<boolean> {
+  async updateUserTaskProgress(userId: number, taskId: number, progress: number): Promise<UserTask | undefined> {
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('user_tasks')
-        .delete()
-        .eq('id', taskId);
+        .update({ progress })
+        .eq('user_id', userId)
+        .eq('task_id', taskId)
+        .select()
+        .single();
 
       if (error) throw error;
-      return true;
+      return data;
     } catch (error) {
-      log(`deleteUserTask error: ${error instanceof Error ? error.message : String(error)}`);
-      return false;
+      log(`updateUserTaskProgress error: ${error instanceof Error ? error.message : JSON.stringify(error)}`);
+      return undefined;
+    }
+  }
+
+  async completeUserTask(userId: number, taskId: number): Promise<UserTask | undefined> {
+    try {
+      const { data, error } = await supabase
+        .from('user_tasks')
+        .update({
+          is_completed: true,
+          completed_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+        .eq('task_id', taskId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      log(`completeUserTask error: ${error instanceof Error ? error.message : JSON.stringify(error)}`);
+      return undefined;
     }
   }
   
@@ -330,11 +415,34 @@ export class SupabaseStorage implements IStorage {
     }
   }
   
-  async createBoostType(boostData: InsertBoostType): Promise<BoostType> {
+  async getBoostTypeById(id: number): Promise<BoostType | undefined> {
     try {
       const { data, error } = await supabase
         .from('boost_types')
-        .insert([boostData])
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      log(`getBoostTypeById error: ${error instanceof Error ? error.message : String(error)}`);
+      return undefined;
+    }
+  }
+  
+  async createBoostType(boostType: InsertBoostType): Promise<BoostType> {
+    try {
+      const { data, error } = await supabase
+        .from('boost_types')
+        .insert([{
+          name: boostType.name,
+          description: boostType.description,
+          multiplier: boostType.multiplier,
+          duration_hours: boostType.durationHours,
+          cost: boostType.cost,
+          created_at: new Date().toISOString()
+        }])
         .select()
         .single();
 
@@ -342,60 +450,44 @@ export class SupabaseStorage implements IStorage {
       return data;
     } catch (error) {
       log(`createBoostType error: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
+      throw new Error(`Failed to create boost type: ${error}`);
     }
   }
   
-  async updateBoostType(boostId: number, boostData: Partial<BoostType>): Promise<BoostType | undefined> {
+  async updateBoostType(id: number, boostType: Partial<BoostType>): Promise<BoostType | undefined> {
     try {
       const { data, error } = await supabase
         .from('boost_types')
-        .update(boostData)
-        .eq('id', boostId)
+        .update(boostType)
+        .eq('id', id)
         .select()
         .single();
 
       if (error) throw error;
       return data;
     } catch (error) {
-      log(`updateBoostType error: ${error instanceof Error ? error.message : String(error)}`);
+      log(`updateBoostType error: ${error instanceof Error ? error.message : JSON.stringify(error)}`);
       return undefined;
     }
   }
-  
-  async deleteBoostType(boostId: number): Promise<boolean> {
+
+  async deleteBoostType(id: number): Promise<boolean> {
     try {
       const { error } = await supabase
         .from('boost_types')
         .delete()
-        .eq('id', boostId);
+        .eq('id', id);
 
       if (error) throw error;
       return true;
     } catch (error) {
-      log(`deleteBoostType error: ${error instanceof Error ? error.message : String(error)}`);
+      log(`deleteBoostType error: ${error instanceof Error ? error.message : JSON.stringify(error)}`);
       return false;
     }
   }
   
   // UserBoost methods
-  async createUserBoost(userData: InsertUserBoost): Promise<UserBoost> {
-    try {
-      const { data, error } = await supabase
-        .from('user_boosts')
-        .insert([userData])
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      log(`createUserBoost error: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
-    }
-  }
-  
-  async getUserBoosts(userId: number): Promise<UserBoost[]> {
+  async getUserBoosts(userId: number): Promise<(UserBoost & { boost_type: BoostType })[]> {
     try {
       const { data, error } = await supabase
         .from('user_boosts')
@@ -403,19 +495,66 @@ export class SupabaseStorage implements IStorage {
         .eq('user_id', userId);
 
       if (error) throw error;
-      return data;
+      
+      // Her user_boost için ilgili boost_type bilgilerini getir
+      const boostTypes = await Promise.all(
+        data.map(async (userBoost) => {
+          const { data: boostTypeData, error: boostTypeError } = await supabase
+            .from('boost_types')
+            .select('*')
+            .eq('id', userBoost.boost_type_id)
+            .single();
+
+          if (boostTypeError) throw boostTypeError;
+          return { ...userBoost, boost_type: boostTypeData };
+        })
+      );
+
+      return boostTypes;
     } catch (error) {
       log(`getUserBoosts error: ${error instanceof Error ? error.message : String(error)}`);
       return [];
     }
   }
   
-  async updateUserBoost(boostId: number, userData: Partial<UserBoost>): Promise<UserBoost | undefined> {
+  async createUserBoost(userBoost: InsertUserBoost): Promise<UserBoost & { boost_type: BoostType }> {
     try {
       const { data, error } = await supabase
         .from('user_boosts')
-        .update(userData)
-        .eq('id', boostId)
+        .insert([userBoost])
+        .select('*')
+        .single();
+
+      if (error) throw error;
+      
+      // Get related boost type
+      const { data: boostType, error: boostError } = await supabase
+        .from('boost_types')
+        .select('*')
+        .eq('id', data.boost_type_id)
+        .single();
+
+      if (boostError) throw boostError;
+      
+      return {
+        ...data,
+        boost_type: boostType
+      };
+    } catch (error) {
+      log(`createUserBoost error: ${error instanceof Error ? error.message : JSON.stringify(error)}`);
+      throw error;
+    }
+  }
+  
+  async updateUserBoost(userId: number, boostTypeId: number, isActive: boolean): Promise<UserBoost> {
+    try {
+      const { data, error } = await supabase
+        .from('user_boosts')
+        .update({
+          is_active: isActive
+        })
+        .eq('user_id', userId)
+        .eq('boost_type_id', boostTypeId)
         .select()
         .single();
 
@@ -427,27 +566,82 @@ export class SupabaseStorage implements IStorage {
     }
   }
   
-  async deleteUserBoost(boostId: number): Promise<boolean> {
+  async deactivateExpiredBoosts(): Promise<number> {
     try {
-      const { error } = await supabase
+      const now = new Date().toISOString();
+      const { error, count } = await supabase
         .from('user_boosts')
-        .delete()
-        .eq('id', boostId);
+        .update({ is_active: false })
+        .eq('is_active', true)
+        .lt('end_time', now)
+        .select('id', { count: 'exact' });
 
       if (error) throw error;
-      return true;
+      return count || 0;
     } catch (error) {
-      log(`deleteUserBoost error: ${error instanceof Error ? error.message : String(error)}`);
-      return false;
+      log(`deactivateExpiredBoosts error: ${error instanceof Error ? error.message : JSON.stringify(error)}`);
+      return 0;
+    }
+  }
+  
+  async getUserActiveBoosts(userId: number): Promise<(UserBoost & { boost_type: BoostType })[]> {
+    try {
+      const { data, error } = await supabase
+        .from('user_boosts')
+        .select('*, boost_types(*)')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .gt('end_time', new Date().toISOString());
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      log(`getUserActiveBoosts error: ${error instanceof Error ? error.message : JSON.stringify(error)}`);
+      return [];
+    }
+  }
+
+  async getReferrals(referrerId: number): Promise<(Referral & { referred_user: User })[]> {
+    try {
+      const { data, error } = await supabase
+        .from('referrals')
+        .select('*, referred_user:users(*)')
+        .eq('referrer_id', referrerId);
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      log(`getReferrals error: ${error instanceof Error ? error.message : JSON.stringify(error)}`);
+      return [];
+    }
+  }
+
+  async getReferralCount(userId: number): Promise<number> {
+    try {
+      const { count, error } = await supabase
+        .from('referrals')
+        .select('*', { count: 'exact', head: true })
+        .eq('referrer_id', userId);
+
+      if (error) throw error;
+      return count || 0;
+    } catch (error) {
+      log(`getReferralCount error: ${error instanceof Error ? error.message : JSON.stringify(error)}`);
+      return 0;
     }
   }
   
   // Referral methods
-  async createReferral(referralData: InsertReferral): Promise<Referral> {
+  async createReferral(referral: InsertReferral): Promise<Referral> {
     try {
       const { data, error } = await supabase
         .from('referrals')
-        .insert([referralData])
+        .insert([{
+          referrer_id: referral.referrer_id,
+          referred_id: referral.referred_id,
+          points: referral.points || 0,
+          created_at: new Date().toISOString()
+        }])
         .select()
         .single();
 
@@ -455,54 +649,52 @@ export class SupabaseStorage implements IStorage {
       return data;
     } catch (error) {
       log(`createReferral error: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
+      throw new Error(`Failed to create referral: ${error}`);
     }
   }
   
-  async getReferrals(userId: number): Promise<Referral[]> {
+  async getReferralsByReferrer(referrerId: number): Promise<Referral[]> {
     try {
       const { data, error } = await supabase
         .from('referrals')
         .select('*')
-        .eq('referrer_id', userId);
+        .eq('referrer_id', referrerId);
 
       if (error) throw error;
       return data;
     } catch (error) {
-      log(`getReferrals error: ${error instanceof Error ? error.message : String(error)}`);
+      log(`getReferralsByReferrer error: ${error instanceof Error ? error.message : String(error)}`);
       return [];
     }
   }
   
-  async updateReferral(referralId: number, referralData: Partial<Referral>): Promise<Referral | undefined> {
+  async getReferralsByReferred(referredId: number): Promise<Referral[]> {
     try {
       const { data, error } = await supabase
         .from('referrals')
-        .update(referralData)
-        .eq('id', referralId)
-        .select()
-        .single();
+        .select('*')
+        .eq('referred_id', referredId);
 
       if (error) throw error;
       return data;
     } catch (error) {
-      log(`updateReferral error: ${error instanceof Error ? error.message : String(error)}`);
-      return undefined;
+      log(`getReferralsByReferred error: ${error instanceof Error ? error.message : String(error)}`);
+      return [];
     }
   }
   
-  async deleteReferral(referralId: number): Promise<boolean> {
+  async getBoosts(): Promise<BoostType[]> {
     try {
-      const { error } = await supabase
-        .from('referrals')
-        .delete()
-        .eq('id', referralId);
+      const { data, error } = await supabase
+        .from('boost_types')
+        .select('*')
+        .eq('is_active', true);
 
       if (error) throw error;
-      return true;
+      return data;
     } catch (error) {
-      log(`deleteReferral error: ${error instanceof Error ? error.message : String(error)}`);
-      return false;
+      log(`getBoosts error: ${error instanceof Error ? error.message : String(error)}`);
+      return [];
     }
   }
 }

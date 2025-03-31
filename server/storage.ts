@@ -1,30 +1,31 @@
+// Gerekli arayüzleri ve türleri içe aktar
 import {
-  users, User, InsertUser,
-  tasks, Task, InsertTask,
-  userTasks, UserTask, InsertUserTask,
-  boostTypes, BoostType, InsertBoostType,
-  userBoosts, UserBoost, InsertUserBoost,
-  referrals, Referral, InsertReferral
-} from "@shared/schema";
+  User, InsertUser,
+  Task, InsertTask,
+  UserTask, InsertUserTask,
+  BoostType, InsertBoostType,
+  UserBoost, InsertUserBoost,
+  Referral, InsertReferral
+} from "../shared/schema.ts";
 
-// Define the storage interface
+// Storage arayüzü tanımla
 export interface IStorage {
   // User methods
   getUserByTelegramId(telegramId: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  createUser(userData: InsertUser): Promise<User>;
   updateUserPoints(userId: number, pointsToAdd: number): Promise<boolean>;
   updateUserLastMiningTime(userId: number): Promise<boolean>;
   updateUserRole(userId: number, role: string, username?: string, password?: string): Promise<User | undefined>;
-  getUserById(id: number): Promise<User | undefined>;
+  getUserById(userId: number): Promise<User | undefined>;
   getUsersByReferralCode(referralCode: string): Promise<User[]>;
   getAllUsers(): Promise<User[]>;
   
   // Task methods
   getTasks(type?: string): Promise<Task[]>;
   getTaskById(id: number): Promise<Task | undefined>;
-  createTask(task: InsertTask): Promise<Task>;
-  updateTask(id: number, task: Partial<Task>): Promise<Task | undefined>;
+  createTask(taskData: InsertTask): Promise<Task>;
+  updateTask(id: number, taskData: Partial<Task>): Promise<Task | undefined>;
   deleteTask(id: number): Promise<boolean>;
   
   // UserTask methods
@@ -42,21 +43,25 @@ export interface IStorage {
   deleteBoostType(id: number): Promise<boolean>;
   
   // UserBoost methods
-  getUserBoosts(userId: number): Promise<(UserBoost & { boostType: BoostType })[]>;
-  getUserActiveBoosts(userId: number): Promise<(UserBoost & { boostType: BoostType })[]>;
-  createUserBoost(userBoost: InsertUserBoost): Promise<UserBoost & { boostType: BoostType }>;
-  deactivateExpiredBoosts(): Promise<number>; // Returns count of deactivated boosts
+  getUserBoosts(userId: number): Promise<(UserBoost & { boost_type: BoostType })[]>;
+  getUserActiveBoosts(userId: number): Promise<(UserBoost & { boost_type: BoostType })[]>;
+  createUserBoost(userBoost: InsertUserBoost): Promise<UserBoost & { boost_type: BoostType }>;
+  deactivateExpiredBoosts(): Promise<number>;
   
   // Referral methods
-  getReferrals(userId: number): Promise<(Referral & { referredUser: User })[]>;
-  getReferralCount(userId: number): Promise<number>;
+  getReferrals(referrerId: number): Promise<(Referral & { referred_user: User })[]>;
   createReferral(referral: InsertReferral): Promise<Referral>;
+  getReferralCount(userId: number): Promise<number>;
 }
 
-export class MemStorage implements IStorage {
+// SupabaseStorage sınıfını içe aktar
+import { SupabaseStorage } from './db-storage.ts';
+
+// Bellekte saklama için örnek bir sınıf
+export class InMemoryStorage implements IStorage {
   private users: Map<number, User> = new Map();
   private tasks: Map<number, Task> = new Map();
-  private userTasks: Map<string, UserTask> = new Map(); // key: `${userId}-${taskId}`
+  private userTasks: Map<string, UserTask> = new Map(); // key: `${user_id}-${task_id}`
   private boostTypes: Map<number, BoostType> = new Map();
   private userBoosts: Map<number, UserBoost> = new Map();
   private referrals: Map<number, Referral> = new Map();
@@ -79,99 +84,99 @@ export class MemStorage implements IStorage {
       name: "Hız Boost",
       description: "Kazım hızını 24 saat boyunca 1.5x artır",
       multiplier: 150, // 1.5x
-      durationHours: 24,
+      duration_hours: 24,
       price: 500,
-      isActive: true,
-      iconName: "rocket",
-      colorClass: "blue",
-      isPopular: false
+      is_active: true,
+      icon_name: "rocket",
+      color_class: "blue",
+      is_popular: false
     });
     
     this.createBoostType({
       name: "Süper Boost",
       description: "Kazım hızını 24 saat boyunca 2x artır",
       multiplier: 200, // 2x
-      durationHours: 24,
+      duration_hours: 24,
       price: 1000,
-      isActive: true,
-      iconName: "rocket",
-      colorClass: "purple",
-      isPopular: false
+      is_active: true,
+      icon_name: "rocket",
+      color_class: "purple",
+      is_popular: false
     });
     
     this.createBoostType({
       name: "Mega Boost",
       description: "Kazım hızını 24 saat boyunca 3x artır",
       multiplier: 300, // 3x
-      durationHours: 24,
+      duration_hours: 24,
       price: 2000,
-      isActive: true,
-      iconName: "rocket",
-      colorClass: "yellow",
-      isPopular: false
+      is_active: true,
+      icon_name: "rocket",
+      color_class: "yellow",
+      is_popular: false
     });
     
     this.createBoostType({
       name: "Ultra Boost",
       description: "Kazım hızını 7 gün boyunca 2x artır",
       multiplier: 200, // 2x
-      durationHours: 168, // 7 days
+      duration_hours: 168, // 7 days
       price: 5000,
-      isActive: true,
-      iconName: "rocket",
-      colorClass: "red",
-      isPopular: true
+      is_active: true,
+      icon_name: "rocket",
+      color_class: "red",
+      is_popular: true
     });
     
     // Add default tasks
     this.createTask({
+      type: "daily",
       title: "Uygulamayı Aç",
       description: "Uygulamayı günde bir kez aç",
-      type: "daily",
       points: 10,
-      requiredAmount: 1,
-      isActive: true,
-      telegramAction: "open_app",
-      telegramTarget: null
+      required_amount: 1,
+      is_active: true,
+      telegram_action: "open_app",
+      telegram_target: null
     });
     
     this.createTask({
+      type: "daily",
       title: "Gruba Mesaj Gönder",
       description: "Telegram grubuna en az 3 mesaj gönder",
-      type: "daily",
       points: 50,
-      requiredAmount: 3,
-      isActive: true,
-      telegramAction: "send_message",
-      telegramTarget: "@mining_group"
+      required_amount: 3,
+      is_active: true,
+      telegram_action: "send_message",
+      telegram_target: "@mining_group"
     });
     
     this.createTask({
+      type: "weekly",
       title: "5 Arkadaş Davet Et",
       description: "5 arkadaşını referans koduyla davet et",
-      type: "weekly",
       points: 200,
-      requiredAmount: 5,
-      isActive: true,
-      telegramAction: "invite_friends",
-      telegramTarget: null
+      required_amount: 5,
+      is_active: true,
+      telegram_action: "invite_friends",
+      telegram_target: null
     });
     
     this.createTask({
+      type: "special",
       title: "Kanala Katıl",
       description: "Resmi duyuru kanalımıza katıl",
-      type: "special",
       points: 100,
-      requiredAmount: 1,
-      isActive: true,
-      telegramAction: "join_channel",
-      telegramTarget: "@mining_channel"
+      required_amount: 1,
+      is_active: true,
+      telegram_action: "join_channel",
+      telegram_target: "@mining_channel"
     });
   }
   
   // User methods
   async getUserByTelegramId(telegramId: string): Promise<User | undefined> {
-    const user = Array.from(this.users.values()).find(u => u.telegramId === telegramId);
+    const user = Array.from(this.users.values()).find(u => u.telegram_id === telegramId);
     return user;
   }
   
@@ -187,11 +192,11 @@ export class MemStorage implements IStorage {
       id,
       level: 1,
       points: 0,
-      miningSpeed: 10,
-      lastMiningTime: new Date(),
-      completedTasksCount: 0,
-      boostUsageCount: 0,
-      joinDate: new Date()
+      mining_speed: 10,
+      last_mining_time: new Date(),
+      completed_tasks_count: 0,
+      boost_usage_count: 0,
+      join_date: new Date()
     };
     
     this.users.set(id, user);
@@ -217,7 +222,7 @@ export class MemStorage implements IStorage {
     
     const updatedUser = {
       ...user,
-      lastMiningTime: new Date()
+      last_mining_time: new Date()
     };
     
     this.users.set(userId, updatedUser);
@@ -239,12 +244,12 @@ export class MemStorage implements IStorage {
     return updatedUser;
   }
   
-  async getUserById(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+  async getUserById(userId: number): Promise<User | undefined> {
+    return this.users.get(userId);
   }
   
   async getUsersByReferralCode(referralCode: string): Promise<User[]> {
-    return Array.from(this.users.values()).filter(u => u.referralCode === referralCode);
+    return Array.from(this.users.values()).filter(u => u.referral_code === referralCode);
   }
   
   async getAllUsers(): Promise<User[]> {
@@ -255,9 +260,9 @@ export class MemStorage implements IStorage {
   async getTasks(type?: string): Promise<Task[]> {
     const allTasks = Array.from(this.tasks.values());
     if (type) {
-      return allTasks.filter(task => task.type === type && task.isActive);
+      return allTasks.filter(task => task.type === type && task.is_active);
     }
-    return allTasks.filter(task => task.isActive);
+    return allTasks.filter(task => task.is_active);
   }
   
   async getTaskById(id: number): Promise<Task | undefined> {
@@ -295,10 +300,10 @@ export class MemStorage implements IStorage {
   // UserTask methods
   async getUserTasks(userId: number): Promise<(UserTask & { task: Task })[]> {
     const userTaskEntries = Array.from(this.userTasks.values())
-      .filter(ut => ut.userId === userId);
+      .filter(ut => ut.user_id === userId);
     
     return userTaskEntries.map(ut => {
-      const task = this.tasks.get(ut.taskId)!;
+      const task = this.tasks.get(ut.task_id)!;
       return { ...ut, task };
     });
   }
@@ -307,19 +312,19 @@ export class MemStorage implements IStorage {
     return this.userTasks.get(`${userId}-${taskId}`);
   }
   
-  async createUserTask(userTaskData: InsertUserTask): Promise<UserTask> {
+  async createUserTask(userTask: InsertUserTask): Promise<UserTask> {
     const id = this.userTaskIdCounter++;
-    const userTask: UserTask = {
-      ...userTaskData,
+    const userTaskData: UserTask = {
+      ...userTask,
       id,
       progress: 0,
-      isCompleted: false,
-      completedAt: null,
-      createdAt: new Date()
+      is_completed: false,
+      completed_at: null,
+      created_at: new Date()
     };
     
-    this.userTasks.set(`${userTaskData.userId}-${userTaskData.taskId}`, userTask);
-    return userTask;
+    this.userTasks.set(`${userTask.user_id}-${userTask.task_id}`, userTaskData);
+    return userTaskData;
   }
   
   async updateUserTaskProgress(userId: number, taskId: number, progress: number): Promise<UserTask | undefined> {
@@ -330,26 +335,26 @@ export class MemStorage implements IStorage {
     const task = this.tasks.get(taskId);
     if (!task) return undefined;
     
-    const isCompleted = progress >= task.requiredAmount;
-    const completedAt = isCompleted ? new Date() : userTask.completedAt;
+    const isCompleted = progress >= task.required_amount;
+    const completedAt = isCompleted ? new Date() : userTask.completed_at;
     
     const updatedUserTask: UserTask = {
       ...userTask,
       progress,
-      isCompleted,
-      completedAt
+      is_completed: isCompleted,
+      completed_at: completedAt
     };
     
     this.userTasks.set(key, updatedUserTask);
     
     // If task was just completed, update user stats
-    if (isCompleted && !userTask.isCompleted) {
+    if (isCompleted && !userTask.is_completed) {
       const user = this.users.get(userId);
       if (user) {
         const updatedUser = {
           ...user,
           points: user.points + task.points,
-          completedTasksCount: user.completedTasksCount + 1
+          completed_tasks_count: user.completed_tasks_count + 1
         };
         this.users.set(userId, updatedUser);
       }
@@ -368,21 +373,21 @@ export class MemStorage implements IStorage {
     
     const updatedUserTask: UserTask = {
       ...userTask,
-      progress: task.requiredAmount,
-      isCompleted: true,
-      completedAt: new Date()
+      progress: task.required_amount,
+      is_completed: true,
+      completed_at: new Date()
     };
     
     this.userTasks.set(key, updatedUserTask);
     
     // Update user points and stats
-    if (!userTask.isCompleted) {
+    if (!userTask.is_completed) {
       const user = this.users.get(userId);
       if (user) {
         const updatedUser = {
           ...user,
           points: user.points + task.points,
-          completedTasksCount: user.completedTasksCount + 1
+          completed_tasks_count: user.completed_tasks_count + 1
         };
         this.users.set(userId, updatedUser);
       }
@@ -393,31 +398,31 @@ export class MemStorage implements IStorage {
   
   // BoostType methods
   async getBoostTypes(): Promise<BoostType[]> {
-    return Array.from(this.boostTypes.values()).filter(bt => bt.isActive);
+    return Array.from(this.boostTypes.values()).filter(bt => bt.is_active);
   }
   
   async getBoostTypeById(id: number): Promise<BoostType | undefined> {
     return this.boostTypes.get(id);
   }
   
-  async createBoostType(boostTypeData: InsertBoostType): Promise<BoostType> {
+  async createBoostType(boostType: InsertBoostType): Promise<BoostType> {
     const id = this.boostTypeIdCounter++;
-    const boostType: BoostType = {
-      ...boostTypeData,
+    const boostTypeData: BoostType = {
+      ...boostType,
       id
     };
     
-    this.boostTypes.set(id, boostType);
-    return boostType;
+    this.boostTypes.set(id, boostTypeData);
+    return boostTypeData;
   }
   
-  async updateBoostType(id: number, boostTypeData: Partial<BoostType>): Promise<BoostType | undefined> {
-    const boostType = this.boostTypes.get(id);
-    if (!boostType) return undefined;
+  async updateBoostType(id: number, boostType: Partial<BoostType>): Promise<BoostType | undefined> {
+    const boostTypeData = this.boostTypes.get(id);
+    if (!boostTypeData) return undefined;
     
     const updatedBoostType = {
-      ...boostType,
-      ...boostTypeData
+      ...boostTypeData,
+      ...boostType
     };
     
     this.boostTypes.set(id, updatedBoostType);
@@ -429,50 +434,50 @@ export class MemStorage implements IStorage {
   }
   
   // UserBoost methods
-  async getUserBoosts(userId: number): Promise<(UserBoost & { boostType: BoostType })[]> {
+  async getUserBoosts(userId: number): Promise<(UserBoost & { boost_type: BoostType })[]> {
     const userBoostEntries = Array.from(this.userBoosts.values())
-      .filter(ub => ub.userId === userId);
+      .filter(ub => ub.user_id === userId);
     
     return userBoostEntries.map(ub => {
-      const boostType = this.boostTypes.get(ub.boostTypeId)!;
-      return { ...ub, boostType };
+      const boostType = this.boostTypes.get(ub.boost_type_id)!;
+      return { ...ub, boost_type };
     });
   }
   
-  async getUserActiveBoosts(userId: number): Promise<(UserBoost & { boostType: BoostType })[]> {
+  async getUserActiveBoosts(userId: number): Promise<(UserBoost & { boost_type: BoostType })[]> {
     const now = new Date();
     const userBoostEntries = Array.from(this.userBoosts.values())
-      .filter(ub => ub.userId === userId && ub.isActive && new Date(ub.endTime) > now);
+      .filter(ub => ub.user_id === userId && ub.is_active && new Date(ub.end_time) > now);
     
     return userBoostEntries.map(ub => {
-      const boostType = this.boostTypes.get(ub.boostTypeId)!;
-      return { ...ub, boostType };
+      const boostType = this.boostTypes.get(ub.boost_type_id)!;
+      return { ...ub, boost_type };
     });
   }
   
-  async createUserBoost(userBoostData: InsertUserBoost): Promise<UserBoost & { boostType: BoostType }> {
+  async createUserBoost(userBoost: InsertUserBoost): Promise<UserBoost & { boost_type: BoostType }> {
     const id = this.userBoostIdCounter++;
-    const startTime = new Date();
-    const userBoost: UserBoost = {
-      ...userBoostData,
+    const start_time = new Date();
+    const userBoostData: UserBoost = {
+      ...userBoost,
       id,
-      startTime,
-      isActive: true
+      start_time,
+      is_active: true
     };
     
-    this.userBoosts.set(id, userBoost);
+    this.userBoosts.set(id, userBoostData);
     
     // Update user's boost usage count
-    const user = this.users.get(userBoostData.userId);
+    const user = this.users.get(userBoost.user_id);
     if (user) {
       const updatedUser = {
         ...user,
-        boostUsageCount: user.boostUsageCount + 1
+        boost_usage_count: user.boost_usage_count + 1
       };
       this.users.set(user.id, updatedUser);
     }
     
-    return { ...userBoost, boostType: this.boostTypes.get(userBoostData.boostTypeId)! };
+    return { ...userBoostData, boost_type: this.boostTypes.get(userBoost.boost_type_id)! };
   }
   
   async deactivateExpiredBoosts(): Promise<number> {
@@ -480,10 +485,10 @@ export class MemStorage implements IStorage {
     let count = 0;
     
     for (const [id, boost] of this.userBoosts.entries()) {
-      if (boost.isActive && new Date(boost.endTime) <= now) {
+      if (boost.is_active && new Date(boost.end_time) <= now) {
         const updatedBoost = {
           ...boost,
-          isActive: false
+          is_active: false
         };
         this.userBoosts.set(id, updatedBoost);
         count++;
@@ -494,67 +499,65 @@ export class MemStorage implements IStorage {
   }
   
   // Referral methods
-  async getReferrals(userId: number): Promise<(Referral & { referredUser: User })[]> {
+  async getReferrals(referrerId: number): Promise<(Referral & { referred_user: User })[]> {
     const referralEntries = Array.from(this.referrals.values())
-      .filter(r => r.referrerId === userId);
+      .filter(r => r.referrer_id === referrerId);
     
     return referralEntries.map(r => {
-      const referred = this.users.get(r.referredId)!;
-      return { ...r, referredUser: referred };
+      const referred = this.users.get(r.referred_id)!;
+      return { ...r, referred_user: referred };
     });
   }
   
-  async getReferralCount(userId: number): Promise<number> {
-    return Array.from(this.referrals.values())
-      .filter(r => r.referrerId === userId).length;
-  }
-  
-  async createReferral(referralData: InsertReferral): Promise<Referral> {
+  async createReferral(referral: InsertReferral): Promise<Referral> {
     const id = this.referralIdCounter++;
-    const referral: Referral = {
-      ...referralData,
+    const referralData: Referral = {
+      ...referral,
       id,
-      createdAt: new Date()
+      created_at: new Date()
     };
     
-    this.referrals.set(id, referral);
+    this.referrals.set(id, referralData);
     
     // Award points to the referrer
-    const referrer = this.users.get(referralData.referrerId);
+    const referrer = this.users.get(referral.referrer_id);
     if (referrer) {
       const updatedReferrer = {
         ...referrer,
-        points: referrer.points + referralData.points,
+        points: referrer.points + referral.points,
         // Boost referrer's mining speed by 5%
-        miningSpeed: Math.floor(referrer.miningSpeed * 1.05)
+        mining_speed: Math.floor(referrer.mining_speed * 1.05)
       };
       this.users.set(referrer.id, updatedReferrer);
     }
     
-    return referral;
+    return referralData;
+  }
+  
+  async getReferralCount(userId: number): Promise<number> {
+    return Array.from(this.referrals.values())
+      .filter(r => r.referrer_id === userId).length;
   }
 }
 
-// Neon.tech veritabanını kullanmak için import et
-import { NeonStorage } from './db-storage';
+// Ortama göre farklı storage sağlayıcıları
+let storageInstance: IStorage;
 
-// Environment'e göre doğru storage'ı seç
-let storage: IStorage;
-
-// Üretim ortamında Neon.tech veritabanını kullan
-// Geliştirme ortamında bellek içi depolama kullan
-if (process.env.NODE_ENV === 'production') {
-  console.log('Using Neon.tech PostgreSQL storage in production');
-  try {
-    storage = new NeonStorage();
-  } catch (error) {
-    console.error("CRITICAL: Failed to initialize Neon.tech storage:", error);
-    console.log("Falling back to in-memory storage due to database connection error");
-    storage = new MemStorage();
+// Storage örneğini döndüren fonksiyon
+export function getStorage(): IStorage {
+  if (!storageInstance) {
+    if (process.env.NODE_ENV === 'production') {
+      console.log('Using Supabase storage in production');
+      storageInstance = new SupabaseStorage();
+    } else {
+      console.log('Using in-memory storage for development');
+      // Geliştirme ortamında da Supabase kullan
+      storageInstance = new SupabaseStorage();
+    }
   }
-} else {
-  console.log('Using in-memory storage for development');
-  storage = new MemStorage();
+  
+  return storageInstance;
 }
 
-export { storage };
+// Storage instance'ını export et
+export const storage = getStorage();
