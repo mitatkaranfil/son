@@ -8,7 +8,6 @@ import Home from "@/pages/home";
 import Admin from "@/pages/admin";
 import NotFound from "@/pages/not-found";
 import LoadingScreen from "@/components/LoadingScreen";
-import { initializeFirebase } from "./lib/firebase";
 import { initializeTelegramApp } from "./lib/telegram";
 
 function Router() {
@@ -31,19 +30,11 @@ function App() {
       try {
         console.log(`App initialization attempt ${retryCount + 1}`);
         
-        // Initialize Telegram WebApp first
+        // Initialize Telegram WebApp
         initializeTelegramApp();
         
-        // Initialize Firebase with a timeout to prevent hanging
-        const firebasePromise = initializeFirebase();
-        
-        // Create a timeout promise
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error("Firebase initialization timed out")), 10000);
-        });
-        
-        // Race between Firebase initialization and timeout
-        await Promise.race([firebasePromise, timeoutPromise]);
+        // Kısa bir gecikme ekleyelim
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
         console.log("App initialization complete");
         setIsInitialized(true);
@@ -76,7 +67,7 @@ function App() {
     );
   }
 
-  // Proceed with the app even if there were initialization errors
+  // Proceed with the app
   return (
     <QueryClientProvider client={queryClient}>
       <UserProvider>
