@@ -46,7 +46,7 @@ WORKDIR /app
 # Bellek yönetimi ve ortam değişkenleri
 ENV NODE_OPTIONS="--max-old-space-size=512"
 ENV NODE_ENV=production
-ENV PORT=8080
+ENV PORT=3000
 ENV SUPABASE_URL=https://lfalfdmfehcwnnqxkycj.supabase.co
 ENV SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxmYWxmZG1mZWhjd25ucXhreWNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM0NDA5NTYsImV4cCI6MjA1OTAxNjk1Nn0.Uh0-GS11EogXWyIf05f4ORk3PqITmEd3cPHMekjcFTs
 ENV ADMIN_TELEGRAM_ID=8000260089
@@ -78,7 +78,7 @@ RUN echo "Listing shared directory:" && ls -la shared/
 # Node debugger için bağlantı noktasını aç
 EXPOSE 9229
 # Uygulama için bağlantı noktasını aç
-EXPOSE 8080
+EXPOSE 3000
 
 # Uygulamayı TSX ile başlat (TypeScript dosyalarını doğrudan çalıştırma)
 CMD ["tsx", "--tsconfig", "/app/tsconfig.json", "server/index.ts"] 
