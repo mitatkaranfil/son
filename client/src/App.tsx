@@ -20,6 +20,39 @@ function Router() {
   );
 }
 
+// URL parametrelerinden Telegram verilerini kontrol et
+function checkTelegramParams() {
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    console.log("URL parametreleri kontrol ediliyor...");
+    
+    // Telegram WebApp parametresi var mı?
+    const tgWebAppData = urlParams.get('tgWebAppData');
+    const tgWebAppVersion = urlParams.get('tgWebAppVersion');
+    
+    if (tgWebAppData) {
+      console.log("tgWebAppData parametresi bulundu!");
+      console.log("tgWebAppVersion:", tgWebAppVersion);
+      
+      // URL'deki data'yı parse etmeye çalış
+      try {
+        const decodedData = decodeURIComponent(tgWebAppData);
+        console.log("Decoded tgWebAppData:", decodedData);
+      } catch (e) {
+        console.warn("tgWebAppData parse edilemedi:", e);
+      }
+      
+      return true;
+    } else {
+      console.log("URL'de Telegram parametreleri bulunamadı");
+      return false;
+    }
+  } catch (error) {
+    console.error("URL parametreleri kontrol edilirken hata:", error);
+    return false;
+  }
+}
+
 function App() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
@@ -29,6 +62,27 @@ function App() {
     const init = async () => {
       try {
         console.log(`App initialization attempt ${retryCount + 1}`);
+        
+        // URL parametrelerini kontrol et
+        const hasTelegramParams = checkTelegramParams();
+        
+        // Telegram WebApp kontrolü
+        if (window.Telegram && window.Telegram.WebApp) {
+          console.log("Telegram WebApp bulundu!");
+          // Her ne kadar TypeScript bunu tanımasa da platform özelliği var
+          if ('platform' in window.Telegram.WebApp) {
+            console.log("Telegram Platform:", (window.Telegram.WebApp as any).platform);
+          }
+          
+          // Kullanıcı bilgilerini kontrol et
+          if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+            console.log("Telegram User:", JSON.stringify(window.Telegram.WebApp.initDataUnsafe.user));
+          } else {
+            console.warn("Telegram kullanıcı bilgisi bulunamadı");
+          }
+        } else {
+          console.warn("Telegram WebApp bulunamadı, geliştirme ortamında olabilirsiniz");
+        }
         
         // Initialize Telegram WebApp
         initializeTelegramApp();

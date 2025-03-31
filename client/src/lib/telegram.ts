@@ -281,53 +281,60 @@ export function getTelegramUser(): {
   photoUrl?: string;
 } | null {
   try {
-    console.log('Checking Telegram environment...');
+    // Detaylı loglama ekleyelim
+    console.log('--- getTelegramUser başlangıç ---');
     
-    // Check if window.Telegram exists
-    const hasTelegram = typeof window !== 'undefined' && !!window.Telegram;
-    
-    // Check if window.TelegramWebApp exists (alternative API)
-    const hasTelegramWebApp = typeof window !== 'undefined' && !!window.TelegramWebApp;
-    
-    console.log('window.Telegram exists:', hasTelegram);
-    console.log('window.TelegramWebApp exists:', hasTelegramWebApp);
-    
-    // Try getting user from window.Telegram.WebApp
-    if (hasTelegram && window.Telegram.WebApp?.initDataUnsafe?.user) {
-      const user = window.Telegram.WebApp.initDataUnsafe.user;
-      console.log('User found in window.Telegram.WebApp:', user);
+    // Telegram WebApp kontrolü
+    if (window.Telegram && window.Telegram.WebApp) {
+      console.log('Telegram WebApp objesi bulundu');
       
-      return {
-        telegramId: user.id.toString(),
-        firstName: user.first_name,
-        lastName: user.last_name,
-        username: user.username,
-        photoUrl: user.photo_url
-      };
+      if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+        const user = window.Telegram.WebApp.initDataUnsafe.user;
+        console.log('Telegram user bilgileri:', JSON.stringify(user));
+        
+        return {
+          telegramId: user.id.toString(),
+          firstName: user.first_name,
+          lastName: user.last_name,
+          username: user.username,
+          photoUrl: user.photo_url
+        };
+      } else {
+        console.warn('Telegram user bilgisi bulunamadı');
+      }
+    } else {
+      console.warn('Telegram WebApp objesi bulunamadı');
     }
     
-    // Try getting user from alternative TelegramWebApp
-    if (hasTelegramWebApp && window.TelegramWebApp?.initDataUnsafe?.user) {
-      const user = window.TelegramWebApp.initDataUnsafe.user;
-      console.log('User found in window.TelegramWebApp:', user);
+    // Alternatif Telegram API kontrolü
+    if (window.TelegramWebApp) {
+      console.log('Alternatif TelegramWebApp objesi bulundu');
       
-      return {
-        telegramId: user.id.toString(),
-        firstName: user.first_name || user.firstName,
-        lastName: user.last_name || user.lastName,
-        username: user.username,
-        photoUrl: user.photo_url || user.photoUrl
-      };
+      if (window.TelegramWebApp.initDataUnsafe && window.TelegramWebApp.initDataUnsafe.user) {
+        const user = window.TelegramWebApp.initDataUnsafe.user;
+        console.log('Alternatif Telegram user bilgileri:', JSON.stringify(user));
+        
+        return {
+          telegramId: user.id.toString(),
+          firstName: user.first_name || user.firstName,
+          lastName: user.last_name || user.lastName,
+          username: user.username,
+          photoUrl: user.photo_url || user.photoUrl
+        };
+      } else {
+        console.warn('Alternatif Telegram user bilgisi bulunamadı');
+      }
+    } else {
+      console.warn('Alternatif TelegramWebApp objesi bulunamadı');
     }
     
-    // Bu noktaya kadar gerçek Telegram kullanıcı verisi elde edemedik
-    
+    console.log('--- Development ortamı kontrolü ---');
     // Test modunda mıyız?
     const isDevelopment = import.meta.env.DEV;
     
     // Development ortamında fallback kullanıcısı kullan
     if (isDevelopment) {
-      console.log('Using test user data for development because real Telegram user not found');
+      console.log('Development ortamı: Test kullanıcısı oluşturuluyor');
       const testUser = {
         telegramId: "123456789",
         firstName: "Test",
@@ -339,7 +346,8 @@ export function getTelegramUser(): {
     }
     
     // Üretim ortamında ve kullanıcı bulunamadı
-    console.log('Not in Telegram WebApp or user data unavailable');
+    console.warn('Üretim ortamında ve Telegram kullanıcısı bulunamadı');
+    console.log('--- getTelegramUser bitiş ---');
     return null;
   } catch (error) {
     console.error('Error getting Telegram user:', error);
