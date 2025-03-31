@@ -1,43 +1,91 @@
-import { useContext } from "react";
+import { useState, useEffect, useContext, useMemo } from "react";
 import { UserContext } from "@/context/UserContext";
-import { calculateMiningSpeed, calculateNextMiningTime, getMiningStatus } from "@/lib/mining";
+import { formatTimeRemaining, isMiningAvailable } from "@/lib/mining";
+
+// Kullanıcı verisi için cache
+let cachedUserData = null;
+let cachedUserTime = 0;
+const USER_CACHE_TTL = 30 * 1000; // 30 saniye cache süresi
 
 // Custom hook to access user data and functionality
-export const useUser = () => {
-  const context = useContext(UserContext);
+const useUser = () => {
+  const { user, isLoading, error, activeBoosts, refreshUser, claimMiningRewards } = useContext(UserContext);
   
-  if (!context) {
-    throw new Error("useUser must be used within a UserProvider");
-  }
+  // Madencilik hızını optimize etmek için useMemo kullan
+  const currentMiningSpeed = useMemo(() => {
+    if (!user) return 0;
+    
+    let speed = user.miningSpeed;
+    
+    // Apply boost multipliers
+    activeBoosts.forEach(boost => {
+      if (boost.boostType) {
+        speed = Math.floor(speed * (boost.boostType.multiplier / 100));
+      }
+    });
+    
+    return speed;
+  }, [user, activeBoosts]);
   
-  const { user, activeBoosts, ...rest } = context;
+  // Sonraki madencilik zamanını hesapla
+  const nextMiningTime = useMemo(() => {
+    if (!user?.lastMiningTime) return "Şimdi";
+    
+    const lastMining = new Date(user.lastMiningTime);
+    if (isMiningAvailable(lastMining)) {
+      return "Şimdi";
+    }
+    
+    const nextTime = new Date(lastMining);
+    nextTime.setHours(nextTime.getHours() + 1);
+    
+    return formatTimeRemaining(nextTime);
+  }, [user?.lastMiningTime]);
   
-  // Calculate current mining speed (with boosts)
-  const currentMiningSpeed = user 
-    ? calculateMiningSpeed(user.miningSpeed, activeBoosts)
-    : 0;
+  // Madencilik durumunu hesapla
+  const miningStatus = useMemo(() => {
+    if (!user) {
+      return { text: "Yükleniyor", className: "text-gray-400" };
+    }
+    
+    // Madencilik emre amade mi kontrol et
+    if (user.lastMiningTime && isMiningAvailable(user.lastMiningTime as Date)) {
+      return { text: "Hazır", className: "text-green-400" };
+    }
+    
+    // Boost durumuna göre sınıf belirle
+    const hasActiveBoost = activeBoosts.length > 0;
+    
+    return {
+      text: hasActiveBoost ? "Boost Aktif" : "Normal",
+      className: hasActiveBoost ? "text-accent" : "text-primary"
+    };
+  }, [user, activeBoosts]);
   
-  // Calculate next mining time
-  const nextMiningTime = user 
-    ? calculateNextMiningTime(user.lastMiningTime as Date)
-    : "00:00";
-  
-  // Get mining status
-  const miningStatus = user 
-    ? getMiningStatus(user.lastMiningTime as Date, activeBoosts)
-    : { text: "Bağlanıyor", className: "text-gray-400" };
-  
-  // Calculate active boost count
-  const activeBoostCount = activeBoosts.length;
+  // Performansı iyileştirmek için yenileme fonksiyonunu önbelleğe alın
+  const performRefresh = async () => {
+    const now = Date.now();
+    
+    // Sadece 30 saniyede bir yenile
+    if (cachedUserTime > 0 && now - cachedUserTime < USER_CACHE_TTL) {
+      console.log("Using cached user data");
+      return;
+    }
+    
+    await refreshUser();
+    cachedUserTime = now;
+  };
   
   return {
     user,
+    isLoading,
+    error,
     activeBoosts,
+    refreshUser: performRefresh,
+    claimMiningRewards,
     currentMiningSpeed,
     nextMiningTime,
-    miningStatus,
-    activeBoostCount,
-    ...rest
+    miningStatus
   };
 };
 

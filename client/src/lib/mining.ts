@@ -190,3 +190,28 @@ export function getMiningStatus(
     return { text: "Belirsiz", className: "text-gray-400" };
   }
 }
+
+// Format time remaining until a specific date
+export function formatTimeRemaining(endDate: Date): string {
+  const now = new Date();
+  const end = new Date(endDate);
+  
+  // Calculate the time difference in milliseconds
+  const diffMs = end.getTime() - now.getTime();
+  
+  if (diffMs <= 0) {
+    return "Şimdi"; // Time has already passed
+  }
+  
+  // If less than a minute remaining
+  if (diffMs < 60000) {
+    const seconds = Math.floor(diffMs / 1000);
+    return `${seconds} sn`;
+  }
+  
+  // Format as MM:SS
+  const minutes = Math.floor(diffMs / (1000 * 60));
+  const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+  
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}

@@ -5,6 +5,11 @@ import { useToast } from "@/hooks/use-toast";
 import { showConfirm, hapticFeedback } from "@/lib/telegram";
 import { formatBoostRemainingTime, calculatePotentialEarnings } from "@/lib/mining";
 
+// Cache için basit değişkenler tanımlayalım
+let boostTypesCache: BoostType[] = [];
+let boostTypesCacheTime = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 dakika cache süresi
+
 export const useBoosts = () => {
   const { user, activeBoosts, refreshUser, currentMiningSpeed } = useUser();
   const { toast } = useToast();
@@ -18,13 +23,27 @@ export const useBoosts = () => {
       try {
         setIsLoading(true);
         
-        // Load boost types from API
+        // Cache'in geçerli olup olmadığını kontrol et
+        const now = Date.now();
+        if (boostTypesCache.length > 0 && now - boostTypesCacheTime < CACHE_TTL) {
+          console.log("Using cached boost types");
+          setBoostTypes(boostTypesCache);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Cache geçersizse API'den yükle
         console.log("Loading boost types from API");
         const response = await fetch("/api/boosts");
         
         if (response.ok) {
           const boostData = await response.json();
           console.log("Boost types loaded from API:", boostData);
+          
+          // Cache'i güncelle
+          boostTypesCache = boostData;
+          boostTypesCacheTime = now;
+          
           setBoostTypes(boostData);
         } else {
           throw new Error("Failed to load boost types from API");
