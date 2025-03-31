@@ -4,5 +4,4 @@ npm-debug.log
 .github
 .gitignore
 .vscode
-*.md
-dist 
+*.md 
