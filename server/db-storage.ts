@@ -19,7 +19,7 @@ export class NeonStorage implements IStorage {
       const { data, error } = await supabase
         .from('users')
         .select('*')
-        .eq('telegramId', telegramId)
+        .eq('telegram_id', telegramId)
         .single();
 
       if (error) throw error;
@@ -48,9 +48,18 @@ export class NeonStorage implements IStorage {
   
   async createUser(userData: InsertUser): Promise<User> {
     try {
+      // userData'daki firstname ve lastname'i koru
+      const { firstname, lastname, ...restData } = userData;
+      
       const { data, error } = await supabase
         .from('users')
-        .insert([userData])
+        .insert([{
+          ...restData,
+          firstname,
+          lastname,
+          last_mining_time: 'now()',
+          created_at: 'now()'
+        }])
         .select()
         .single();
 
@@ -69,7 +78,10 @@ export class NeonStorage implements IStorage {
       
       const { error } = await supabase
         .from('users')
-        .update({ points: user.points + pointsToAdd })
+        .update({ 
+          points: user.points + pointsToAdd,
+          last_mining_time: 'now()'
+        })
         .eq('id', userId);
 
       if (error) throw error;
@@ -84,7 +96,7 @@ export class NeonStorage implements IStorage {
     try {
       const { error } = await supabase
         .from('users')
-        .update({ lastMiningTime: new Date() })
+        .update({ last_mining_time: 'now()' })
         .eq('id', userId);
 
       if (error) throw error;

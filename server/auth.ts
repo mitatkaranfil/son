@@ -1,4 +1,4 @@
-import express, { Request, Response, NextFunction } from 'express';
+import express, { type Request, Response, NextFunction } from 'express';
 import passport from 'passport';
 import { Strategy as LocalStrategy } from 'passport-local';
 import bcrypt from 'bcryptjs';
@@ -9,7 +9,7 @@ import session from "express-session";
 
 // Local Strategy ile kimlik doğrulama
 passport.use(
-  new LocalStrategy(async (username, password, done) => {
+  new LocalStrategy(async (username: string, password: string, done: (err: any, user?: User | false, info?: { message: string }) => void) => {
     try {
       // Kullanıcı adına göre admin kullanıcıyı bul
       const user = await storage.getUserByUsername(username);
@@ -34,11 +34,11 @@ passport.use(
 );
 
 // Serileştirme ve deserileştirme işlemleri
-passport.serializeUser((user: User, done) => {
+passport.serializeUser((user: User, done: (err: any, id?: number) => void) => {
   done(null, user.id);
 });
 
-passport.deserializeUser(async (id: number, done) => {
+passport.deserializeUser(async (id: number, done: (err: any, user?: User) => void) => {
   try {
     const user = await storage.getUserById(id);
     done(null, user || undefined);
@@ -51,14 +51,14 @@ passport.deserializeUser(async (id: number, done) => {
 export const authRoutes = express.Router();
 
 // Giriş işlemi
-authRoutes.post('/login', (req, res, next) => {
-  passport.authenticate('local', (err, user, info) => {
+authRoutes.post('/login', (req: Request, res: Response, next: NextFunction) => {
+  passport.authenticate('local', (err: any, user: User | false, info: { message: string } | undefined) => {
     if (err) {
       return res.status(500).json({ message: 'Sunucu hatası' });
     }
     
     if (!user) {
-      return res.status(401).json({ message: info.message || 'Giriş başarısız' });
+      return res.status(401).json({ message: info?.message || 'Giriş başarısız' });
     }
     
     req.login(user, (loginErr) => {
@@ -78,7 +78,7 @@ authRoutes.post('/login', (req, res, next) => {
 });
 
 // Çıkış işlemi
-authRoutes.post('/logout', (req, res) => {
+authRoutes.post('/logout', (req: Request, res: Response) => {
   req.logout(function(err) {
     if (err) { 
       return res.status(500).json({ message: 'Çıkış yapılırken hata oluştu' });
@@ -88,7 +88,7 @@ authRoutes.post('/logout', (req, res) => {
 });
 
 // Mevcut kullanıcı bilgilerini getir
-authRoutes.get('/me', (req, res) => {
+authRoutes.get('/me', (req: Request, res: Response) => {
   if (!req.isAuthenticated()) {
     return res.status(401).json({ message: 'Oturum açık değil' });
   }
@@ -138,15 +138,17 @@ export async function createAdminUser(username: string, password: string, telegr
     // Yeni admin kullanıcısı oluştur
     return await storage.createUser({
       telegramId,
-      firstName: username,
-      lastName: 'Admin',
+      firstname: username,
+      lastname: 'Admin',
       username,
       password: hashedPassword,
       referralCode: `ADMIN-${Math.random().toString(36).substring(2, 8)}`,
-      role: 'admin'
+      role: 'admin',
+      last_mining_time: new Date(),
+      created_at: new Date()
     });
   } catch (error) {
     console.error('Admin kullanıcı oluşturma hatası:', error);
     throw error;
   }
-} 
+}

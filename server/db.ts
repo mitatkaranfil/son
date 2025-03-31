@@ -36,15 +36,15 @@ export async function createTables() {
             id SERIAL PRIMARY KEY,
             telegram_id TEXT UNIQUE,
             username TEXT,
-            first_name TEXT,
-            last_name TEXT,
+            firstname TEXT,
+            lastname TEXT,
             points INTEGER DEFAULT 0,
             referral_code TEXT UNIQUE,
             referred_by TEXT,
             role TEXT DEFAULT 'user',
             password TEXT,
-            last_mining_time TIMESTAMP,
-            created_at TIMESTAMP DEFAULT NOW()
+            last_mining_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
           );
         `);
       
