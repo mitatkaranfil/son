@@ -161,8 +161,8 @@ async function startServer() {
     const server = await registerRoutes(app);
 
     // Sunucuyu başlat
-    server.listen(process.env.PORT || 3001, () => {
-      console.log(`[express] serving on port ${process.env.PORT || 3001}`);
+    server.listen(process.env.PORT || 3000, () => {
+      console.log(`[express] serving on port ${process.env.PORT || 3000}`);
     });
   } catch (error) {
     log(`Sunucu başlatılamadı: ${error instanceof Error ? error.message : String(error)}`);
