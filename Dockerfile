@@ -29,6 +29,10 @@ ENV DEBUG=vite:*
 # Client uygulamasını derle
 RUN npm run build:client || (echo "Client build failed" && exit 1)
 
+# Build sonrası dosyaları kontrol et
+RUN echo "Listing root directory:" && ls -la
+RUN echo "Listing client-dist directory:" && ls -la client-dist || echo "client-dist directory does not exist"
+
 # Çalışma aşaması
 FROM node:18-alpine
 
@@ -50,7 +54,8 @@ RUN npm config set loglevel warn \
 
 # Server dosyalarını kopyala
 COPY --from=builder /app/server ./server
-COPY --from=builder /app/client/dist ./client/dist
+# Client build dosyalarını kopyala
+COPY --from=builder /app/client-dist ./client-dist
 
 # Node debugger için bağlantı noktasını aç
 EXPOSE 9229

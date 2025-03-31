@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "tsx server/index.ts",
-    "build:client": "vite build --debug",
+    "build:client": "vite build --debug --outDir ../client-dist",
     "build:server": "esbuild server/index.ts --platform=node --bundle --format=esm --outdir=dist --external:express --external:pg --external:postgres --external:drizzle-orm --external:@neondatabase/* --external:zod --external:path --external:fs",
     "build": "npm run build:client && npm run build:server",
     "start": "NODE_ENV=production node --no-warnings dist/index.js || node dist/index.js",
