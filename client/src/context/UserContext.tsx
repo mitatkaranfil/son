@@ -204,23 +204,49 @@ export const UserProvider = ({ children, telegramMode = false }: UserProviderPro
             } else {
               // Create a new user with Telegram data
               console.log("UserContext - Creating new user with Telegram data");
-              const newUser = await createUser({
+              
+              // Gerekli alanları kontrol et
+              const firstName = telegramUser.first_name || 'User';
+              if (!telegramId) {
+                throw new Error("Telegram ID is required for user creation");
+              }
+              
+              // Daha fazla log ekle
+              console.log("UserContext - User data being sent:", {
                 telegramId,
-                firstName: telegramUser.first_name || 'User',
+                firstName, 
                 lastName: telegramUser.last_name || null,
                 username: telegramUser.username || null,
                 photoUrl: telegramUser.photo_url || null,
                 referralCode: `REF-${nanoid(6)}`,
-                // Other fields will have default values from server
+                role: 'user',
+                joinDate: new Date()
               });
               
-              if (newUser) {
-                console.log("UserContext - New user created:", newUser);
-                setUser(newUser);
-              } else {
-                throw new Error("Failed to create user");
+              try {
+                const newUser = await createUser({
+                  telegramId,
+                  firstName,
+                  lastName: telegramUser.last_name || null,
+                  username: telegramUser.username || null,
+                  photoUrl: telegramUser.photo_url || null,
+                  referralCode: `REF-${nanoid(6)}`,
+                  role: 'user',
+                  joinDate: new Date()
+                });
+                
+                if (newUser) {
+                  console.log("UserContext - New user created:", newUser);
+                  setUser(newUser);
+                } else {
+                  console.error("UserContext - User creation returned null");
+                  throw new Error("Failed to create user - API returned null");
+                }
+                setIsLoading(false);
+              } catch (createErr: any) {
+                console.error("UserContext - User creation error:", createErr);
+                throw new Error(`Failed to create user: ${createErr?.message || "Unknown error"}`);
               }
-              setIsLoading(false);
             }
           } catch (err: any) {
             console.error("UserContext - Error in authentication:", err?.message);

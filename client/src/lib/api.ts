@@ -12,6 +12,8 @@ function handleError(error: any, message: string): never {
 // API istek yardımcı fonksiyonu - HTML yanıtlarını işler
 async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
   try {
+    console.log(`API Request: ${url}`, options ? `Method: ${options.method || 'GET'}` : 'GET');
+    
     const response = await fetch(url, options);
     const contentType = response.headers.get('content-type');
     
@@ -23,12 +25,30 @@ async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
       throw new Error('Unexpected HTML response from API');
     }
     
+    // Log response status
+    console.log(`API Response: ${url} - Status: ${response.status}`);
+    
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-      throw new Error(errorData.message || `API request failed with status ${response.status}`);
+      let errorMessage = `API request failed with status ${response.status}`;
+      try {
+        const errorData = await response.json();
+        console.error('API Error data:', errorData);
+        errorMessage = errorData.message || errorMessage;
+      } catch (parseError) {
+        console.error('Failed to parse error response as JSON:', parseError);
+        // Try to get text if JSON parsing fails
+        const errorText = await response.text().catch(() => '');
+        if (errorText) {
+          console.error('Error response text:', errorText.substring(0, 200));
+          errorMessage += `: ${errorText.substring(0, 100)}`;
+        }
+      }
+      throw new Error(errorMessage);
     }
     
-    return await response.json();
+    const data = await response.json();
+    console.log(`API Success: ${url} - Response:`, data);
+    return data;
   } catch (error) {
     console.error('API Request error:', error);
     throw error;
