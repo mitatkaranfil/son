@@ -3,12 +3,18 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
+# Bellek yönetimi
+ENV NODE_OPTIONS="--max-old-space-size=512"
+
 # Debug için gerekli araçlar
 RUN apk add --no-cache bash
 
-# Paket dosyalarını kopyala ve bağımlılıkları yükle
+# Paket dosyalarını kopyala
 COPY package*.json ./
-RUN npm install --legacy-peer-deps --no-audit
+
+# Sadece gerekli bağımlılıkları yükle, bellek kullanımını azaltmak için
+RUN npm install --only=production --no-audit --no-fund --prefer-offline --no-optional
+RUN npm install --no-save vite esbuild typescript @vitejs/plugin-react
 
 # Kaynak kodunu kopyala
 COPY . .
@@ -16,28 +22,9 @@ COPY . .
 # Client build öncesi ortam değişkenlerini ayarla
 ENV NODE_ENV=production
 ENV DEBUG=vite:*
-ENV VITE_CJS_TRACE=1
 
-# Firebase yapılandırması için build argümanlarını tanımla
-ARG VITE_FIREBASE_API_KEY
-ARG VITE_FIREBASE_AUTH_DOMAIN
-ARG VITE_FIREBASE_PROJECT_ID
-ARG VITE_FIREBASE_STORAGE_BUCKET
-ARG VITE_FIREBASE_MESSAGING_SENDER_ID
-ARG VITE_FIREBASE_APP_ID
-ARG VITE_FIREBASE_MEASUREMENT_ID
-
-# Firebase yapılandırmasını ortam değişkenlerine aktar
-ENV VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY}
-ENV VITE_FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN}
-ENV VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID}
-ENV VITE_FIREBASE_STORAGE_BUCKET=${VITE_FIREBASE_STORAGE_BUCKET}
-ENV VITE_FIREBASE_MESSAGING_SENDER_ID=${VITE_FIREBASE_MESSAGING_SENDER_ID}
-ENV VITE_FIREBASE_APP_ID=${VITE_FIREBASE_APP_ID}
-ENV VITE_FIREBASE_MEASUREMENT_ID=${VITE_FIREBASE_MEASUREMENT_ID}
-
-# Client uygulamasını derle (tüm çıktıları göstermek için)
-RUN npm run build:client || (echo "Client build failed" && cat npm-debug.log && exit 1)
+# Client uygulamasını derle
+RUN npm run build:client || (echo "Client build failed" && exit 1)
 
 # Server uygulamasını derle
 RUN npm run build:server
@@ -47,14 +34,14 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Bellek yönetimi
+ENV NODE_OPTIONS="--max-old-space-size=512"
+
 # Paket dosyalarını kopyala
 COPY package*.json ./
 
-# Sadece production bağımlılıkları yükle
-RUN npm install --only=production --legacy-peer-deps --no-audit
-
-# Vite'ı production ortamında yükle
-RUN npm install --save vite
+# Sadece üretim bağımlılıklarını yükle
+RUN npm install --only=production --no-audit --no-fund --prefer-offline
 
 # Derleme aşamasından gerekli dosyaları kopyala
 COPY --from=builder /app/dist ./dist
