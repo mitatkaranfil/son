@@ -20,13 +20,53 @@ async function fetchAPI<T>(endpoint: string, options: RequestInit = {}): Promise
       },
     });
 
+    // HTML yanıtı kontrolü
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('text/html')) {
+      console.error(`API returned HTML instead of JSON for ${endpoint}`);
+      throw new Error('API returned HTML instead of JSON. Server may be misconfigured.');
+    }
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-      throw new Error(errorData.message || `API error: ${response.status} ${response.statusText}`);
+      // JSON yanıt almayı dene
+      try {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `API error: ${response.status} ${response.statusText}`);
+      } catch (jsonError) {
+        // JSON parse edemezse text olarak oku
+        const errorText = await response.text();
+        throw new Error(`API error: ${response.status} ${response.statusText} - ${errorText.substring(0, 100)}`);
+      }
     }
 
     return await response.json();
   } catch (error) {
+    console.error(`API request failed for ${endpoint}:`, error);
+    
+    // API erişimi için basit yeniden deneme mekanizması
+    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+      console.log(`Network error for ${endpoint}, retrying once...`);
+      try {
+        // Bir kez daha dene
+        const retryResponse = await fetch(`${API_BASE_URL}${endpoint}`, {
+          ...options,
+          headers: {
+            'Content-Type': 'application/json',
+            ...options.headers,
+          },
+        });
+        
+        if (!retryResponse.ok) {
+          throw new Error(`Retry failed with status: ${retryResponse.status}`);
+        }
+        
+        return await retryResponse.json();
+      } catch (retryError) {
+        console.error(`Retry also failed for ${endpoint}:`, retryError);
+        throw new Error(`API request failed after retry: ${retryError instanceof Error ? retryError.message : String(retryError)}`);
+      }
+    }
+    
     handleError(error, `API request failed: ${endpoint}`);
   }
 }

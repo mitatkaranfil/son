@@ -123,6 +123,9 @@ declare global {
   }
 }
 
+// Telegram özel API endpoint'leri
+const TELEGRAM_API_ENDPOINT = '/api/telegram';
+
 // URL parametrelerinden Telegram bilgileri var mı kontrol et
 function getUrlParameter(name: string): string | null {
   name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
@@ -149,7 +152,7 @@ export function isTelegramWebApp(): boolean {
       console.log('Found tgWebAppData in URL, initializing Telegram object manually');
       try {
         // Telegram nesnesini manuel oluşturalım
-        // @ts-ignore
+        // @ts-ignore - Tam WebApp API'yi uygulamak karmaşık, bu nedenle tip kontrolünü görmezden geliyoruz
         window.Telegram = {
           WebApp: {
             initData: tgWebAppData,
@@ -158,6 +161,61 @@ export function isTelegramWebApp(): boolean {
             expand: () => console.log('Manual WebApp expand called'),
             sendData: (data: string) => console.log('Manual WebApp sendData called with:', data),
             close: () => console.log('Manual WebApp close called'),
+            MainButton: {
+              text: "",
+              color: "#2481cc",
+              textColor: "#ffffff",
+              isVisible: false,
+              isActive: true,
+              isProgressVisible: false,
+              show: () => {},
+              hide: () => {},
+              enable: () => {},
+              disable: () => {},
+              showProgress: (leaveActive: boolean) => {},
+              hideProgress: () => {},
+              onClick: (callback: () => void) => {},
+              offClick: (callback: () => void) => {},
+              setText: (text: string) => {},
+              setParams: () => {}
+            },
+            BackButton: {
+              isVisible: false,
+              show: () => {},
+              hide: () => {},
+              onClick: (callback: () => void) => {},
+              offClick: (callback: () => void) => {}
+            },
+            openLink: (url: string) => {},
+            openTelegramLink: (url: string) => {},
+            openInvoice: (url: string, callback?: (status: string) => void) => {},
+            showPopup: () => {},
+            showAlert: (message: string) => {},
+            showConfirm: (message: string) => {},
+            HapticFeedback: {
+              impactOccurred: () => {},
+              notificationOccurred: () => {},
+              selectionChanged: () => {}
+            },
+            isVersionAtLeast: (version: string) => true,
+            setHeaderColor: () => {},
+            setBackgroundColor: () => {},
+            enableClosingConfirmation: () => {},
+            disableClosingConfirmation: () => {},
+            onEvent: () => {},
+            offEvent: () => {},
+            setViewportHeight: () => {},
+            requestViewport: () => {},
+            requestWriteAccess: () => {},
+            requestContact: () => {},
+            CloudStorage: {
+              getItem: async () => null,
+              setItem: async () => true,
+              removeItem: async () => true,
+              getItems: async () => ({}),
+              removeItems: async () => true,
+              getKeys: async () => []
+            }
           }
         };
         
@@ -398,90 +456,76 @@ export function getTelegramUser(forceTelegram: boolean = false): {
   }
 }
 
-// Get or create a user in Firebase based on Telegram data
+// Authenticate with backend and get or create user
 export async function authenticateTelegramUser(referralCode?: string, forceTelegram: boolean = false): Promise<User | null> {
-  console.log('Starting authenticateTelegramUser function');
-  const telegramUser = getTelegramUser(forceTelegram);
-  
-  console.log('getTelegramUser returned:', telegramUser);
-  
-  if (!telegramUser) {
-    console.error('No Telegram user found');
-    return null;
-  }
-  
   try {
-    // Try to fetch user from API
-    console.log('Trying to fetch user via API endpoint');
-    const response = await fetch(`/api/users/telegram/${telegramUser.telegramId}`);
+    console.log("Authenticating Telegram user...");
     
-    if (response.ok) {
-      const userData = await response.json();
-      console.log('User found via API:', userData);
-      return userData;
-    } else if (response.status === 404) {
-      // User doesn't exist, create a new one
-      console.log('User not found, creating new user with referral code:', referralCode);
+    // Check if we are in Telegram WebApp environment
+    const isTelegram = isTelegramWebApp();
+    console.log("In Telegram WebApp environment:", isTelegram);
+    
+    // If not in Telegram environment and not forcing Telegram auth, return null
+    if (!isTelegram && !forceTelegram) {
+      console.log("Not in Telegram WebApp and not forcing Telegram auth.");
+      return null;
+    }
+    
+    // Get user directly from Telegram WebApp
+    let telegramUser = getTelegramUser();
+    
+    if (!telegramUser) {
+      console.warn("Failed to get user from Telegram WebApp, falling back to demo user");
+      return null;
+    }
+    
+    console.log("Got Telegram user:", telegramUser);
+    
+    // Check if user exists in our database
+    try {
+      const existingUser = await fetch(`${TELEGRAM_API_ENDPOINT}/user/${telegramUser.telegramId}`)
+        .then(res => {
+          if (res.ok) return res.json();
+          if (res.status === 404) return null;
+          throw new Error(`Failed to check user: ${res.status}`);
+        });
       
-      // Generate a unique referral code for the new user
-      const uniqueReferralCode = generateReferralCode();
+      console.log("Existing user check:", existingUser ? "Found" : "Not found");
       
-      // Create new user via API
-      const createResponse = await fetch('/api/users', {
+      if (existingUser) {
+        console.log("User exists, returning");
+        return existingUser;
+      }
+      
+      // User doesn't exist, create new user
+      console.log("Creating new user");
+      
+      const referralData = referralCode ? { referredBy: referralCode } : {};
+      const userData = {
+        ...telegramUser,
+        ...referralData,
+        referralCode: generateReferralCode(),
+      };
+      
+      const createdUser = await fetch(`${TELEGRAM_API_ENDPOINT}/user`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          telegramId: telegramUser.telegramId,
-          firstName: telegramUser.firstName,
-          lastName: telegramUser.lastName || null,
-          username: telegramUser.username || null,
-          photoUrl: telegramUser.photoUrl || null,
-          referralCode: uniqueReferralCode,
-          referredBy: referralCode || null
-        }),
+        body: JSON.stringify(userData)
+      }).then(res => {
+        if (res.ok) return res.json();
+        throw new Error(`Failed to create user: ${res.status}`);
       });
       
-      if (createResponse.ok) {
-        const newUser = await createResponse.json();
-        console.log('New user created:', newUser);
-        
-        // Process referral if provided
-        if (referralCode) {
-          try {
-            const referralResponse = await fetch('/api/referrals', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                referralCode,
-                referredUserId: newUser.id
-              }),
-            });
-            
-            if (referralResponse.ok) {
-              console.log('Referral processed successfully');
-            } else {
-              console.warn('Failed to process referral:', await referralResponse.text());
-            }
-          } catch (referralError) {
-            console.error('Error processing referral:', referralError);
-          }
-        }
-        
-        return newUser;
-      } else {
-        console.error('Failed to create user:', createResponse.status, await createResponse.text());
-        return null;
-      }
-    } else {
-      console.error('Error fetching user:', response.status, await response.text());
+      console.log("User created:", createdUser);
+      return createdUser;
+    } catch (error) {
+      console.error("Error authenticating with backend:", error);
       return null;
     }
   } catch (error) {
-    console.error('Authentication error:', error);
+    console.error("Authentication error:", error);
     return null;
   }
 }

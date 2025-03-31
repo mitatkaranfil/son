@@ -27,6 +27,9 @@ interface UserProviderProps {
   telegramMode?: boolean;
 }
 
+// Telegram API endpoint
+const TELEGRAM_API_ENDPOINT = '/api/telegram';
+
 // Fallback kullanıcı oluştur
 const createFallbackUser = (): User => {
   return {
@@ -71,117 +74,106 @@ export const UserProvider = ({ children, telegramMode = false }: UserProviderPro
       try {
         setIsLoading(true);
         console.log("UserContext - Initializing user, attempt:", initAttempts + 1);
-        console.log("UserContext - window.location.href:", window.location.href);
-        console.log("UserContext - telegramMode:", telegramMode);
         
-        // Telegram modu etkinleştirildi mi kontrol et - Bu çok önemli!
-        if (!telegramMode) {
-          console.log("UserContext - Telegram mode is disabled, using test user");
+        // Telegram bağlantı zaman aşımı
+        const timeoutPromise = new Promise<void>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error("Telegram connection timed out"));
+          }, 5000); // 5 saniye sonra zaman aşımı
+        });
+        
+        // Telegram bağlantısını zaman aşımı ile yarıştır
+        Promise.race([
+          initTelegramUser(),
+          timeoutPromise
+        ]).catch(error => {
+          console.warn("UserContext - Telegram connection failed or timed out:", error?.message);
+          console.log("UserContext - Creating fallback user");
+          
+          // Zaman aşımı veya hata durumunda fallback kullanıcı oluştur
           const fallbackUser = createFallbackUser();
           setUser(fallbackUser);
           setUseFallback(true);
+        }).finally(() => {
           setIsLoading(false);
-          return;
+        });
+      } catch (error: any) {
+        console.error("UserContext - Error initializing user:", error?.message || "Unknown error");
+        
+        // Hata durumunda fallback kullanıcı oluştur
+        const fallbackUser = createFallbackUser();
+        setUser(fallbackUser);
+        setUseFallback(true);
+        setIsLoading(false);
+      }
+    };
+    
+    // Telegram kullanıcısını başlatma fonksiyonu
+    const initTelegramUser = async (): Promise<void> => {
+      // Telegram modu etkinleştirildi mi kontrol et
+      if (!telegramMode) {
+        console.log("UserContext - Telegram mode is disabled, using test user");
+        const fallbackUser = createFallbackUser();
+        setUser(fallbackUser);
+        setUseFallback(true);
+        return;
+      }
+      
+      // Test için manuel kullanıcı oluşturmayı zorla
+      const forceTestUser = getUrlParameter('forceTestUser') === 'true';
+      if (forceTestUser) {
+        console.log("UserContext - Forced test user mode enabled via URL parameter");
+        const fallbackUser = createFallbackUser();
+        setUser(fallbackUser);
+        setUseFallback(true);
+        return;
+      }
+      
+      // URL'den Telegram parametrelerini al
+      const tgWebAppData = getUrlParameter('tgWebAppData');
+      const tgWebAppUser = getUrlParameter('user');
+      
+      console.log("UserContext - tgWebAppData:", tgWebAppData ? "exists" : "missing");
+      console.log("UserContext - tgWebAppUser:", tgWebAppUser ? "exists" : "missing");
+      
+      let telegramUser = null;
+      
+      // URL parametrelerinden kullanıcı bilgisi çıkarmayı dene
+      if (tgWebAppUser) {
+        try {
+          const userData = JSON.parse(decodeURIComponent(tgWebAppUser));
+          console.log("UserContext - User data from URL:", userData);
+          
+          if (userData && userData.id) {
+            telegramUser = {
+              telegramId: userData.id.toString(),
+              firstName: userData.first_name || userData.firstName || "User",
+              lastName: userData.last_name || userData.lastName,
+              username: userData.username,
+              photoUrl: userData.photo_url || userData.photoUrl
+            };
+            console.log("UserContext - Created user from URL data:", telegramUser);
+          }
+        } catch (urlParseError) {
+          console.error("UserContext - Error parsing URL user data:", urlParseError);
         }
+      }
+      
+      // Telegram WebApp doğrudan kontrol
+      if (!telegramUser) {
+        console.log("UserContext - Checking Telegram WebApp directly");
         
-        // Test için manuel kullanıcı oluşturmayı zorla
-        const forceTestUser = getUrlParameter('forceTestUser') === 'true';
-        if (forceTestUser) {
-          console.log("UserContext - Forced test user mode enabled via URL parameter");
-          const fallbackUser = createFallbackUser();
-          setUser(fallbackUser);
-          setUseFallback(true);
-          setIsLoading(false);
-          return;
-        }
-        
-        // URL'den Telegram parametrelerini al
-        const tgWebAppData = getUrlParameter('tgWebAppData');
-        const tgWebAppUser = getUrlParameter('user');
-        
-        console.log("UserContext - tgWebAppData:", tgWebAppData ? "exists" : "missing");
-        console.log("UserContext - tgWebAppUser:", tgWebAppUser ? "exists" : "missing");
-        
-        let telegramUser = null;
-        
-        // URL parametrelerinden kullanıcı bilgisi çıkarmayı dene
-        if (tgWebAppUser) {
-          try {
-            const userData = JSON.parse(decodeURIComponent(tgWebAppUser));
-            console.log("UserContext - User data from URL:", userData);
-            
-            if (userData && userData.id) {
-              telegramUser = {
-                telegramId: userData.id.toString(),
-                firstName: userData.first_name || userData.firstName || "User",
-                lastName: userData.last_name || userData.lastName,
-                username: userData.username,
-                photoUrl: userData.photo_url || userData.photoUrl
-              };
-              console.log("UserContext - Created user from URL data:", telegramUser);
-            }
-          } catch (urlParseError) {
-            console.error("UserContext - Error parsing URL user data:", urlParseError);
-          }
-        }
-        
-        // Telegram WebApp doğrudan kontrol
-        if (!telegramUser) {
-          console.log("UserContext - Checking Telegram WebApp directly");
-          
-          // Tüm window nesnelerini kontrol et
-          console.log("UserContext - All window properties:", Object.keys(window));
-          
-          // Global telegram değişkeni kontrolü
-          console.log("UserContext - window.Telegram exists:", !!window.Telegram);
-          console.log("UserContext - window.telegram exists:", !!(window as any).telegram);
-          console.log("UserContext - window.TelegramWebApp exists:", !!(window as any).TelegramWebApp);
-          
-          // Tüm window telegram nesnelerini dökümanlandır
-          const telegramObjects = Object.getOwnPropertyNames(window).filter(key => 
-            key.toLowerCase().includes('telegram')
-          );
-          console.log("UserContext - All Telegram-related objects:", telegramObjects);
-          
-          // Telegram global object içeriğini detaylı kontrol
-          if (window.Telegram) {
-            console.log("UserContext - window.Telegram keys:", Object.keys(window.Telegram));
-            try {
-              console.log("UserContext - window.Telegram stringified:", JSON.stringify(window.Telegram));
-            } catch (err: any) {
-              console.log("UserContext - Cannot stringify Telegram object:", err?.message || "Unknown error");
-            }
-          }
-          
-          try {
-            // Tarayıcı hafızasındaki tüm window değişkenlerini kontrol et
-            console.log("UserContext - Checking iframe parent for Telegram object");
-            if (window.parent && window.parent !== window) {
-              console.log("UserContext - We are in an iframe, checking parent window");
-              try {
-                // @ts-ignore - Bu erişim bazı güvenlik kısıtlamaları nedeniyle başarısız olabilir
-                console.log("UserContext - Parent has Telegram:", !!(window.parent as any).Telegram);
-              } catch (frameErr: any) {
-                console.log("UserContext - Cannot access parent frame:", frameErr?.message || "Unknown error");
-              }
-            }
-          } catch (windowErr: any) {
-            console.log("UserContext - Error checking window objects:", windowErr?.message || "Unknown error");
-          }
-          
-          // Telegram nesnesinin içeriğini loglayalım
-          if (window.Telegram) {
-            console.log("UserContext - window.Telegram keys:", Object.keys(window.Telegram));
-          }
+        // Telegram global object içeriğini detaylı kontrol
+        if (window.Telegram) {
+          console.log("UserContext - window.Telegram exists");
           
           // Telegram.WebApp kontrolü
-          if (window.Telegram && window.Telegram.WebApp) {
+          if (window.Telegram.WebApp) {
             console.log("UserContext - window.Telegram.WebApp exists");
-            console.log("UserContext - window.Telegram.WebApp keys:", Object.keys(window.Telegram.WebApp));
             
             // Tüm initDataUnsafe özelliklerini kontrol et
             if (window.Telegram.WebApp.initDataUnsafe) {
-              console.log("UserContext - initDataUnsafe keys:", Object.keys(window.Telegram.WebApp.initDataUnsafe));
+              console.log("UserContext - initDataUnsafe exists");
             }
             
             if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
@@ -196,242 +188,111 @@ export const UserProvider = ({ children, telegramMode = false }: UserProviderPro
                 username: tgUser.username,
                 photoUrl: tgUser.photo_url
               };
-            } else {
-              console.log("UserContext - No user data in window.Telegram.WebApp.initDataUnsafe");
-              
-              // initData string kontrol et
-              if (window.Telegram.WebApp.initData) {
-                console.log("UserContext - initData exists:", window.Telegram.WebApp.initData);
-                try {
-                  // initData'dan kullanıcı bilgilerini çıkarmayı dene
-                  const params = new URLSearchParams(window.Telegram.WebApp.initData);
-                  const userParam = params.get('user');
-                  if (userParam) {
-                    const userData = JSON.parse(userParam);
-                    console.log("UserContext - User parsed from initData:", userData);
-                    
-                    if (userData && userData.id) {
-                      telegramUser = {
-                        telegramId: userData.id.toString(),
-                        firstName: userData.first_name || userData.firstName || "User",
-                        lastName: userData.last_name || userData.lastName,
-                        username: userData.username,
-                        photoUrl: userData.photo_url || userData.photoUrl
-                      };
-                    }
-                  }
-                } catch (parseErr) {
-                  console.error("UserContext - Error parsing initData:", parseErr);
-                }
-              }
-              
-              if (!telegramUser) {
-                console.log("UserContext - initDataUnsafe:", JSON.stringify(window.Telegram.WebApp.initDataUnsafe));
-              }
             }
-          } else {
-            console.log("UserContext - window.Telegram.WebApp does not exist");
-            // window nesnelerini kontrol et
-            console.log("UserContext - window properties:", Object.keys(window).filter(key => key.includes('Telegram')));
           }
         }
+      }
+      
+      // Eğer doğrudan erişebildiysek, API çağrısını yapalım
+      if (telegramUser) {
+        console.log("UserContext - Using directly acquired Telegram user:", telegramUser);
         
-        // Eğer doğrudan erişebildiysek, API çağrısını atlayıp kullanıcı verilerini doğrudan kullanalım
-        if (telegramUser) {
-          console.log("UserContext - Using directly acquired Telegram user:", telegramUser);
+        try {
+          // Telegram özel API endpoint'ini kullan
+          const response = await fetch(`${TELEGRAM_API_ENDPOINT}/user/${telegramUser.telegramId}`);
           
-          try {
-            // Kullanıcıyı API'de ara
-            const response = await fetch(`/api/users/telegram/${telegramUser.telegramId}`);
+          // HTML yanıtı kontrolü - API hata verirse
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('text/html')) {
+            console.error("UserContext - API returned HTML instead of JSON, API might be misconfigured");
+            throw new Error("API returned HTML instead of JSON");
+          }
+          
+          if (response.ok) {
+            // Kullanıcı bulundu
+            const userData = await response.json();
+            console.log("UserContext - User found in API:", userData);
+            setUser(userData);
+          } else {
+            // Kullanıcı bulunamadı, yeni kullanıcı oluştur
+            console.log("UserContext - User not found, creating new user");
             
-            if (response.ok) {
-              // Kullanıcı bulundu
-              const userData = await response.json();
-              console.log("UserContext - User found in API:", userData);
-              setUser(userData);
+            try {
+              // Benzersiz bir referral kodu oluştur
+              const referralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
               
-              // Load active boosts
-              await loadUserBoosts(userData);
+              const createData = {
+                telegramId: telegramUser.telegramId,
+                firstName: telegramUser.firstName,
+                lastName: telegramUser.lastName || null,
+                username: telegramUser.username || null,
+                photoUrl: telegramUser.photoUrl || null,
+                referralCode,
+                referredBy: getUrlParameter('ref') || null
+              };
               
-              // Check for mining rewards
-              await checkAndClaimMiningRewards(userData);
-              
-            } else if (response.status === 404) {
-              // Kullanıcı yoksa oluştur
-              console.log("UserContext - User not found, creating new user");
-              
-              // Generate a unique referral code for the new user
-              const uniqueReferralCode = Math.random().toString(36).substring(2, 8);
-              
-              // Get URL parameters for referral
-              const urlParams = new URLSearchParams(window.location.search);
-              const referralCode = urlParams.get("ref");
-              
-              // Create new user via API
-              const createResponse = await fetch('/api/users', {
+              // Telegram özel API endpoint'ini kullan
+              const createResponse = await fetch(`${TELEGRAM_API_ENDPOINT}/user`, {
                 method: 'POST',
                 headers: {
-                  'Content-Type': 'application/json',
+                  'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                  telegramId: telegramUser.telegramId,
-                  firstName: telegramUser.firstName,
-                  lastName: telegramUser.lastName || null,
-                  username: telegramUser.username || null,
-                  photoUrl: telegramUser.photoUrl || null,
-                  referralCode: uniqueReferralCode,
-                  referredBy: referralCode || null
-                }),
+                body: JSON.stringify(createData)
               });
+              
+              // HTML yanıtı kontrolü - API hata verirse
+              const createContentType = createResponse.headers.get('content-type');
+              if (createContentType && createContentType.includes('text/html')) {
+                console.error("UserContext - API returned HTML instead of JSON during user creation");
+                throw new Error("API returned HTML instead of JSON");
+              }
               
               if (createResponse.ok) {
                 const newUser = await createResponse.json();
                 console.log("UserContext - New user created:", newUser);
                 setUser(newUser);
               } else {
-                const errorData = await createResponse.json().catch(() => ({ message: 'Unknown error' }));
-                console.error("UserContext - Create user API error:", errorData);
-                throw new Error("Failed to create user: " + (errorData.message || createResponse.statusText));
+                throw new Error("Failed to create user");
               }
-            } else {
-              const errorText = await response.text().catch(() => 'Unknown error');
-              console.error("UserContext - API error response:", errorText);
-              throw new Error(`API error: ${response.status} - ${errorText}`);
-            }
-            
-            setIsLoading(false);
-            return;
-          } catch (apiError) {
-            console.error("UserContext - API error:", apiError);
-            
-            // API hatası durumunda development ortamında test kullanıcısı ile devam et
-            if (isDevelopment) {
-              console.log("UserContext - Using fallback user after API error");
-              const fallbackUser = createFallbackUser();
-              setUser(fallbackUser);
-              setUseFallback(true);
-              setIsLoading(false);
-              return;
+            } catch (createError: any) {
+              console.error("UserContext - Error creating user:", createError?.message || "Unknown error");
+              throw new Error("Failed to create user: " + (createError?.message || "Unknown error"));
             }
           }
-        } else {
-          console.log("UserContext - No Telegram user data could be acquired directly");
+        } catch (apiError: any) {
+          console.error("UserContext - API error:", apiError?.message || "Unknown error");
+          throw new Error("API error: " + (apiError?.message || "Unknown error"));
         }
-        
-        // Doğrudan erişim başarısız olduysa veya API hatası olduysa, normal yöntemi deneyelim
-        console.log("UserContext - Attempting Telegram authentication via library function");
-        
-        // Referral code için URL parametresini al
-        const urlParams = new URLSearchParams(window.location.search);
-        const referralCode = urlParams.get("ref");
-        
-        // Telegram authentication - telegramMode=true olduğu için forceTelegram=true
-        const authenticatedUser = await authenticateTelegramUser(referralCode || undefined, true);
-        
-        console.log("UserContext - Authentication result:", authenticatedUser ? "Success" : "Failed");
-        
-        if (authenticatedUser) {
-          setUser(authenticatedUser);
-          console.log("UserContext - User set:", authenticatedUser);
-          
-          // Load active boosts
-          await loadUserBoosts(authenticatedUser);
-          
-          // Check for mining rewards
-          await checkAndClaimMiningRewards(authenticatedUser);
-          
-          setIsLoading(false);
-          return; // Başarılı olduğumuz için fonksiyondan çık
-        }
-        
-        console.error("UserContext - Authentication returned null user");
-        
-        // If we failed to authenticate but have made less than 3 attempts,
-        // we'll try again in a moment (to give Telegram WebApp time to initialize)
-        if (initAttempts < 2) {
-          console.log(`UserContext - Retrying authentication (attempt ${initAttempts + 1}/3)`);
-          setInitAttempts(prev => prev + 1);
-          return; // Exit without setting isLoading to false
-        }
-        
-        // Development ortamında ve 3 denemeden sonra hala başarısız
-        if (isDevelopment) {
-          console.log("Development ortamında fallback kullanıcısı kullanılıyor");
-          const fallbackUser = createFallbackUser();
-          setUser(fallbackUser);
-          setUseFallback(true);
-          setIsLoading(false);
-          return;
-        }
-        
-        // Üretim ortamında ve hala kullanıcı alınamadı
-        throw new Error("Authentication failed after multiple attempts");
-      } catch (err: any) {
-        console.error("UserContext - Error initializing user:", err);
-        setError("Failed to initialize user. Using fallback mode.");
-        
-        // Üretim ortamında da test kullanıcısı oluşturalım
-        console.log("UserContext - Creating fallback user after error");
+      } else {
+        console.warn("UserContext - No Telegram user found");
+        throw new Error("No Telegram user found");
+      }
+    };
+
+    // Kullanıcı zaten varsa yeniden yükleme
+    if (user) {
+      console.log("UserContext - User already exists, skipping initialization");
+      return;
+    }
+    
+    // İlk kez veya yeniden deneme
+    if (initAttempts < 3) {
+      console.log(`UserContext - Starting initialization attempt ${initAttempts + 1}`);
+      setInitAttempts(prev => prev + 1);
+      initUser();
+    } else {
+      console.error("UserContext - Error initializing user: Authentication failed after multiple attempts");
+      setError("Authentication failed after multiple attempts");
+      setIsLoading(false);
+      
+      // Son deneme de başarısız olursa fallback kullanıcı oluştur
+      if (!user) {
         const fallbackUser = createFallbackUser();
         setUser(fallbackUser);
         setUseFallback(true);
-        setError("Telegram bağlantısı kurulamadı. Test kullanıcısı ile devam ediliyor.");
-      } finally {
-        console.log("UserContext - User initialization completed or using fallback");
-        setIsLoading(false);
       }
-    };
-    
-    // Yardımcı fonksiyonlar
-    const loadUserBoosts = async (currentUser: User) => {
-      if (!currentUser.id) return;
-      
-      console.log("UserContext - Loading boosts for user:", currentUser.id);
-      try {
-        const response = await fetch(`/api/users/${currentUser.id}/boosts`);
-        if (response.ok) {
-          const boosts = await response.json();
-          console.log("UserContext - Loaded boosts:", boosts.length);
-          setActiveBoosts(boosts);
-        } else {
-          console.error("UserContext - Failed to load boosts from API");
-        }
-      } catch (boostErr: any) {
-        console.error("UserContext - Error loading boosts:", boostErr?.message || "Unknown error");
-      }
-    };
-    
-    const checkAndClaimMiningRewards = async (currentUser: User) => {
-      if (!currentUser.lastMiningTime) return;
-      
-      if (isMiningAvailable(currentUser.lastMiningTime as Date)) {
-        console.log("UserContext - Claiming mining rewards");
-        try {
-          await claimMiningRewards(currentUser);
-          console.log("UserContext - Mining rewards claimed");
-        } catch (miningErr: any) {
-          console.error("UserContext - Error claiming mining rewards:", miningErr?.message || "Unknown error");
-        }
-      }
-    };
-
-    // Her zaman fallback kullanıcı oluşturmayı garantilemek için init işlemi
-    const timeoutId = setTimeout(() => {
-      if (isLoading && !user) {
-        console.log("UserContext - Timeout reached. Creating fallback user.");
-        const fallbackUser = createFallbackUser();
-        setUser(fallbackUser);
-        setUseFallback(true);
-        setIsLoading(false);
-        setError("Zaman aşımı nedeniyle test kullanıcısı ile devam ediliyor.");
-      }
-    }, 5000); // 5 saniye sonra timeout
-
-    initUser();
-
-    // Cleanup timeout
-    return () => clearTimeout(timeoutId);
-  }, [initAttempts]); // Re-run when initAttempts changes
+    }
+  }, [initAttempts, user, telegramMode]);
 
   // Check for mining rewards
   const claimMiningRewards = async (userToUpdate = user): Promise<boolean> => {
