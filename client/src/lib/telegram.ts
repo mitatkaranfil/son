@@ -134,196 +134,54 @@ function getUrlParameter(name: string): string | null {
   return results === null ? null : decodeURIComponent(results[1].replace(/\+/g, ' '));
 }
 
-// Check if we are in a Telegram WebApp environment
+// Telegram WebApp ortamında mı kontrolü
 export function isTelegramWebApp(): boolean {
   try {
-    // Safer check with detailed logging
-    const hasTelegramObject = typeof window !== 'undefined' && !!window.Telegram;
-    const hasWebAppObject = hasTelegramObject && !!window.Telegram.WebApp;
+    // Farklı olası Telegram obje adlandırmalarını kontrol et
+    const hasTelegram = !!window.Telegram;
+    const hasTelegramLowercase = !!(window as any).telegram;
+    const hasTelegramWebApp = !!(window as any).TelegramWebApp;
     
-    console.log('isTelegramWebApp check - window.Telegram exists:', hasTelegramObject);
-    console.log('isTelegramWebApp check - window.Telegram.WebApp exists:', hasWebAppObject);
-    
-    // Query params'da tgWebAppData varsa, bunları window.Telegram'a aktaralım
-    const tgWebAppData = getUrlParameter('tgWebAppData');
-    const tgWebAppVersion = getUrlParameter('tgWebAppVersion');
-    
-    if (tgWebAppData && !hasWebAppObject) {
-      console.log('Found tgWebAppData in URL, initializing Telegram object manually');
-      try {
-        // Telegram nesnesini manuel oluşturalım
-        // @ts-ignore - Tam WebApp API'yi uygulamak karmaşık, bu nedenle tip kontrolünü görmezden geliyoruz
-        window.Telegram = {
-          WebApp: {
-            initData: tgWebAppData,
-            initDataUnsafe: JSON.parse(decodeURIComponent(tgWebAppData)),
-            ready: () => console.log('Manual WebApp ready called'),
-            expand: () => console.log('Manual WebApp expand called'),
-            sendData: (data: string) => console.log('Manual WebApp sendData called with:', data),
-            close: () => console.log('Manual WebApp close called'),
-            MainButton: {
-              text: "",
-              color: "#2481cc",
-              textColor: "#ffffff",
-              isVisible: false,
-              isActive: true,
-              isProgressVisible: false,
-              show: () => {},
-              hide: () => {},
-              enable: () => {},
-              disable: () => {},
-              showProgress: (leaveActive: boolean) => {},
-              hideProgress: () => {},
-              onClick: (callback: () => void) => {},
-              offClick: (callback: () => void) => {},
-              setText: (text: string) => {},
-              setParams: () => {}
-            },
-            BackButton: {
-              isVisible: false,
-              show: () => {},
-              hide: () => {},
-              onClick: (callback: () => void) => {},
-              offClick: (callback: () => void) => {}
-            },
-            openLink: (url: string) => {},
-            openTelegramLink: (url: string) => {},
-            openInvoice: (url: string, callback?: (status: string) => void) => {},
-            showPopup: () => {},
-            showAlert: (message: string) => {},
-            showConfirm: (message: string) => {},
-            HapticFeedback: {
-              impactOccurred: () => {},
-              notificationOccurred: () => {},
-              selectionChanged: () => {}
-            },
-            isVersionAtLeast: (version: string) => true,
-            setHeaderColor: () => {},
-            setBackgroundColor: () => {},
-            enableClosingConfirmation: () => {},
-            disableClosingConfirmation: () => {},
-            onEvent: () => {},
-            offEvent: () => {},
-            setViewportHeight: () => {},
-            requestViewport: () => {},
-            requestWriteAccess: () => {},
-            requestContact: () => {},
-            CloudStorage: {
-              getItem: async () => null,
-              setItem: async () => true,
-              removeItem: async () => true,
-              getItems: async () => ({}),
-              removeItems: async () => true,
-              getKeys: async () => []
-            }
-          }
-        };
-        
-        console.log('Manual Telegram object created', window.Telegram);
-        return true;
-      } catch (err) {
-        console.error('Error creating manual Telegram object:', err);
-      }
-    }
-    
-    // Telegram WebApp'in testi için basit bir yöntem: 
-    // - URL'de Telegram parametreleri var mı kontrol et
+    // URL'de Telegram parametreleri olup olmadığını kontrol et
     const url = window.location.href;
-    const isTelegramDomain = url.includes('t.me') || url.includes('telegram.org');
-    const hasWebAppParams = url.includes('tgWebAppData') || url.includes('tgWebAppVersion');
+    const hasTelegramParams = url.includes('tgWebAppData') || 
+                             url.includes('tgWebAppVersion') || 
+                             url.includes('tgWebAppPlatform');
     
-    console.log('URL telegram domain:', isTelegramDomain);
-    console.log('URL has WebApp params:', hasWebAppParams);
-    
-    // Determine if we're in development or production
-    const isDevelopment = import.meta.env.DEV;
-    
-    if (isDevelopment) {
-      // In development, we'll allow the app to work outside Telegram
-      console.log('Development mode: Assuming WebApp environment regardless of actual environment');
-      return true;
-    }
-    
-    // In production, be more precise about detection
-    if (hasTelegramObject && hasWebAppObject) {
-      console.log('Production: Telegram WebApp detected via window.Telegram.WebApp');
-      return true;
-    }
-    
-    if (isTelegramDomain || hasWebAppParams) {
-      console.log('Production: Telegram WebApp detected via URL parameters');
-      return true;
-    }
-    
-    console.log('Production: Not in Telegram WebApp environment');
-    return false;
+    return hasTelegram || hasTelegramLowercase || hasTelegramWebApp || hasTelegramParams;
   } catch (error) {
-    console.warn('Error checking Telegram WebApp:', error);
-    // Return true for development, false for production
-    return import.meta.env.DEV ? true : false;
+    console.error('Error checking Telegram environment:', error);
+    return false;
   }
 }
 
-// Initialize and setup the Telegram Mini App
+// Telegram WebApp'i başlat
 export function initializeTelegramApp(): void {
-  console.log('Initializing Telegram WebApp');
   try {
-    // Check if window.Telegram exists
-    const hasTelegram = typeof window !== 'undefined' && !!window.Telegram;
+    console.log('Initializing Telegram WebApp...');
     
-    // Check if window.TelegramWebApp exists (alternative API)
-    const hasTelegramWebApp = typeof window !== 'undefined' && !!window.TelegramWebApp;
-    
-    console.log('window.Telegram exists:', hasTelegram);
-    console.log('window.TelegramWebApp exists:', hasTelegramWebApp);
-    
-    if (hasTelegram && window.Telegram?.WebApp) {
-      // Initialize window.Telegram.WebApp
-      console.log('Initializing window.Telegram.WebApp');
+    // Telegram global objesi var mı kontrol et
+    if (window.Telegram && window.Telegram.WebApp) {
+      console.log('Telegram.WebApp found, expanding to fullscreen mode');
       
-      // Inform Telegram that our app is ready
-      try {
-        window.Telegram.WebApp.ready();
-        console.log('WebApp.ready() called');
-      } catch (readyError) {
-        console.warn('Error calling WebApp.ready():', readyError);
-      }
+      // Ekranı genişlet
+      window.Telegram.WebApp.expand();
       
-      // Set dark theme colors for app
-      try {
-        window.Telegram.WebApp.setHeaderColor('#121212');
-        window.Telegram.WebApp.setBackgroundColor('#121212');
-        console.log('Theme colors set');
-      } catch (colorError) {
-        console.warn('Error setting theme colors:', colorError);
-      }
+      // Ana temayı ayarla
+      document.documentElement.className = window.Telegram.WebApp.colorScheme === 'dark' 
+        ? 'dark' 
+        : 'light';
       
-      // Expand to take full screen if needed
-      try {
-        window.Telegram.WebApp.expand();
-        console.log('WebApp.expand() called');
-      } catch (expandError) {
-        console.warn('Error calling WebApp.expand():', expandError);
-      }
-    } else if (hasTelegramWebApp && window.TelegramWebApp) {
-      // Initialize window.TelegramWebApp (alternative API)
-      console.log('Initializing window.TelegramWebApp (alternative API)');
+      // Toolbar ayarlarını yap
+      window.Telegram.WebApp.BackButton.hide();
+      window.Telegram.WebApp.MainButton.hide();
       
-      try {
-        window.TelegramWebApp.ready();
-        console.log('TelegramWebApp.ready() called');
-      } catch (readyError) {
-        console.warn('Error calling TelegramWebApp.ready():', readyError);
-      }
+      // Yüklemeyi tamamla
+      window.Telegram.WebApp.ready();
       
-      try {
-        window.TelegramWebApp.expand();
-        console.log('TelegramWebApp.expand() called');
-      } catch (expandError) {
-        console.warn('Error calling TelegramWebApp.expand():', expandError);
-      }
+      console.log('Telegram.WebApp initialization completed');
     } else {
-      console.log('Development mode: No Telegram API available');
+      console.log('Telegram.WebApp not found in window object');
     }
   } catch (error) {
     console.error('Error initializing Telegram WebApp:', error);
@@ -537,27 +395,17 @@ function generateReferralCode(length = 6): string {
 }
 
 // Show an alert using Telegram's native UI
-export function showAlert(message: string): Promise<void> {
-  return new Promise((resolve) => {
-    // Check if window.Telegram exists
-    const hasTelegram = typeof window !== 'undefined' && !!window.Telegram?.WebApp;
-    
-    // Check if window.TelegramWebApp exists (alternative API)
-    const hasTelegramWebApp = typeof window !== 'undefined' && !!window.TelegramWebApp;
-    
-    if (hasTelegram) {
-      window.Telegram.WebApp.showAlert(message, () => {
-        resolve();
-      });
-    } else if (hasTelegramWebApp && window.TelegramWebApp) {
-      window.TelegramWebApp.showAlert(message, () => {
-        resolve();
-      });
+export function showAlert(message: string): void {
+  try {
+    if (window.Telegram && window.Telegram.WebApp) {
+      window.Telegram.WebApp.showAlert(message);
     } else {
       alert(message);
-      resolve();
     }
-  });
+  } catch (error) {
+    console.error('Error showing alert:', error);
+    alert(message);
+  }
 }
 
 // Show a confirmation dialog using Telegram's native UI

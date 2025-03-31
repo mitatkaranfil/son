@@ -1,100 +1,70 @@
-import { useEffect, useState } from "react";
-import { Switch, Route, useLocation } from "wouter";
+import React, { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import { UserProvider } from "@/context/UserContext";
-import Home from "@/pages/home";
-import Admin from "@/pages/admin";
-import NotFound from "@/pages/not-found";
-import TelegramApp from "@/pages/telegram";
-import LoadingScreen from "@/components/LoadingScreen";
+import { Route, Switch, useLocation } from "wouter";
+import { UserProvider } from "./context/UserContext";
+import { ToastProvider } from "./context/ToastContext";
+import Home from "./pages/home";
+import TelegramApp from "./pages/telegram";
+import Dashboard from "./pages/dashboard";
+import Tasks from "./pages/tasks";
+import Boosts from "./pages/boosts";
+import Profile from "./pages/profile";
+import Admin from "./pages/admin";
+import Login from "./pages/login";
+import NotFound from "./pages/not-found";
+import { isTelegramWebApp, initializeTelegramApp } from "./lib/telegram";
 
-function Router() {
-  const [location] = useLocation();
+function App() {
+  const [location, setLocation] = useLocation();
   
-  // URL'de Telegram parametresi var mı kontrol et
+  // Telegram web uygulaması mı kontrolü
+  const isTelegram = isTelegramWebApp();
+  
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const hasTelegramParams = urlParams.has('tgWebAppData') || 
-                            urlParams.has('tgWebAppVersion') || 
-                            urlParams.has('tgWebAppPlatform');
+    console.log("App component mounted");
+    console.log("Current location:", location);
     
-    if (hasTelegramParams && !location.includes('/telegram')) {
-      console.log("Router - Detected Telegram parameters, redirecting to /telegram");
-      // URL parametrelerini koruyarak /telegram'a yönlendir
-      window.location.href = `/telegram${window.location.search}`;
+    // URL'den Telegram WebApp kontrolü
+    const url = window.location.href;
+    const isTelegramPath = location === '/telegram';
+    const hasWebAppParams = url.includes('tgWebAppData') || url.includes('tgWebAppVersion');
+    
+    console.log("Is Telegram WebApp:", isTelegram);
+    console.log("Is Telegram path:", isTelegramPath);
+    console.log("Has WebApp params:", hasWebAppParams);
+    
+    // Telegram parametreleri var ama /telegram rotasında değilse yönlendir
+    if ((isTelegram || hasWebAppParams) && !isTelegramPath) {
+      console.log("Redirecting to /telegram");
+      setLocation("/telegram");
     }
-  }, [location]);
-
-  return (
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/admin" component={Admin} />
-      <Route path="/telegram" component={TelegramApp} />
-      <Route component={NotFound} />
-    </Switch>
-  );
-}
-
-// URL parametrelerinden Telegram verilerini kontrol et
-function checkTelegramParams() {
-  try {
-    const urlParams = new URLSearchParams(window.location.search);
-    console.log("URL parametreleri kontrol ediliyor...");
     
-    // Telegram WebApp parametresi var mı?
-    const tgWebAppData = urlParams.get('tgWebAppData');
-    const tgWebAppVersion = urlParams.get('tgWebAppVersion');
-    
-    if (tgWebAppData) {
-      console.log("tgWebAppData parametresi bulundu!");
-      console.log("tgWebAppVersion:", tgWebAppVersion);
-      
-      // URL'deki data'yı parse etmeye çalış
-      try {
-        const decodedData = decodeURIComponent(tgWebAppData);
-        console.log("Decoded tgWebAppData:", decodedData);
-      } catch (e) {
-        console.warn("tgWebAppData parse edilemedi:", e);
-      }
-      
-      return true;
-    } else {
-      console.log("URL'de Telegram parametreleri bulunamadı");
-      return false;
+    // Telegram WebApp ayarlarını başlat
+    if (isTelegram || isTelegramPath) {
+      initializeTelegramApp();
     }
-  } catch (error) {
-    console.error("URL parametreleri kontrol edilirken hata:", error);
-    return false;
-  }
-}
-
-export default function App() {
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // URL'deki Telegram parametrelerini kontrol et
-    const hasTelegramParams = checkTelegramParams();
-    
-    // Initialize app 
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
-  }, []);
-
-  if (isLoading) {
-    return <LoadingScreen message="Uygulama yükleniyor..." />;
-  }
-
+  }, [location, setLocation, isTelegram]);
+  
   return (
     <QueryClientProvider client={queryClient}>
-      <UserProvider>
-        <main className="app">
-          <Router />
-          <Toaster />
-        </main>
-      </UserProvider>
+      <ToastProvider>
+        <UserProvider telegramMode={location === '/telegram'}>
+          <Switch>
+            <Route path="/" component={Home} />
+            <Route path="/telegram" component={TelegramApp} />
+            <Route path="/dashboard" component={Dashboard} />
+            <Route path="/tasks" component={Tasks} />
+            <Route path="/boosts" component={Boosts} />
+            <Route path="/profile" component={Profile} />
+            <Route path="/admin" component={Admin} />
+            <Route path="/login" component={Login} />
+            <Route component={NotFound} />
+          </Switch>
+        </UserProvider>
+      </ToastProvider>
     </QueryClientProvider>
   );
 }
+
+export default App;
