@@ -273,7 +273,7 @@ export function initializeTelegramApp(): void {
 }
 
 // Get current Telegram user
-export function getTelegramUser(): {
+export function getTelegramUser(forceTelegram: boolean = false): {
   telegramId: string;
   firstName: string;
   lastName?: string;
@@ -301,6 +301,28 @@ export function getTelegramUser(): {
         };
       } else {
         console.warn('Telegram user bilgisi bulunamadı');
+        
+        // initData'dan kullanıcı bilgisi çıkarmayı dene
+        if (window.Telegram.WebApp.initData) {
+          try {
+            const params = new URLSearchParams(window.Telegram.WebApp.initData);
+            const userParam = params.get('user');
+            if (userParam) {
+              const userData = JSON.parse(userParam);
+              console.log('initData\'dan parse edilen kullanıcı:', userData);
+              
+              return {
+                telegramId: userData.id.toString(),
+                firstName: userData.first_name || userData.firstName,
+                lastName: userData.last_name || userData.lastName,
+                username: userData.username,
+                photoUrl: userData.photo_url || userData.photoUrl
+              };
+            }
+          } catch (parseErr) {
+            console.error('initData parse hatası:', parseErr);
+          }
+        }
       }
     } else {
       console.warn('Telegram WebApp objesi bulunamadı');
@@ -328,13 +350,34 @@ export function getTelegramUser(): {
       console.warn('Alternatif TelegramWebApp objesi bulunamadı');
     }
     
+    // URL'den kullanıcı bilgilerini almayı dene
+    const tgWebAppUser = getUrlParameter('user');
+    if (tgWebAppUser) {
+      try {
+        const userData = JSON.parse(decodeURIComponent(tgWebAppUser));
+        console.log('URL\'den parse edilen kullanıcı:', userData);
+        
+        if (userData && userData.id) {
+          return {
+            telegramId: userData.id.toString(),
+            firstName: userData.first_name || userData.firstName || "User",
+            lastName: userData.last_name || userData.lastName,
+            username: userData.username,
+            photoUrl: userData.photo_url || userData.photoUrl
+          };
+        }
+      } catch (urlParseError) {
+        console.error('URL kullanıcı veri parse hatası:', urlParseError);
+      }
+    }
+    
     console.log('--- Development ortamı kontrolü ---');
     // Test modunda mıyız?
     const isDevelopment = import.meta.env.DEV;
     
-    // Development ortamında fallback kullanıcısı kullan
-    if (isDevelopment) {
-      console.log('Development ortamı: Test kullanıcısı oluşturuluyor');
+    // ForceTelegram veya development ortamında fallback kullanıcısı kullan
+    if (forceTelegram || isDevelopment) {
+      console.log('ForceTelegram veya development ortamı: Test kullanıcısı oluşturuluyor');
       const testUser = {
         telegramId: "123456789",
         firstName: "Test",
@@ -356,9 +399,9 @@ export function getTelegramUser(): {
 }
 
 // Get or create a user in Firebase based on Telegram data
-export async function authenticateTelegramUser(referralCode?: string): Promise<User | null> {
+export async function authenticateTelegramUser(referralCode?: string, forceTelegram: boolean = false): Promise<User | null> {
   console.log('Starting authenticateTelegramUser function');
-  const telegramUser = getTelegramUser();
+  const telegramUser = getTelegramUser(forceTelegram);
   
   console.log('getTelegramUser returned:', telegramUser);
   
@@ -462,7 +505,7 @@ export function showAlert(message: string): Promise<void> {
       window.Telegram.WebApp.showAlert(message, () => {
         resolve();
       });
-    } else if (hasTelegramWebApp) {
+    } else if (hasTelegramWebApp && window.TelegramWebApp) {
       window.TelegramWebApp.showAlert(message, () => {
         resolve();
       });
@@ -486,8 +529,8 @@ export function showConfirm(message: string): Promise<boolean> {
       window.Telegram.WebApp.showConfirm(message, (isConfirmed) => {
         resolve(isConfirmed);
       });
-    } else if (hasTelegramWebApp) {
-      window.TelegramWebApp.showConfirm(message, (isConfirmed) => {
+    } else if (hasTelegramWebApp && window.TelegramWebApp) {
+      window.TelegramWebApp.showConfirm(message, (isConfirmed: boolean) => {
         resolve(isConfirmed);
       });
     } else {

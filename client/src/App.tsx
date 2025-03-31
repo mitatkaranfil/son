@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -11,6 +11,22 @@ import TelegramApp from "@/pages/telegram";
 import LoadingScreen from "@/components/LoadingScreen";
 
 function Router() {
+  const [location] = useLocation();
+  
+  // URL'de Telegram parametresi var mı kontrol et
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasTelegramParams = urlParams.has('tgWebAppData') || 
+                            urlParams.has('tgWebAppVersion') || 
+                            urlParams.has('tgWebAppPlatform');
+    
+    if (hasTelegramParams && !location.includes('/telegram')) {
+      console.log("Router - Detected Telegram parameters, redirecting to /telegram");
+      // URL parametrelerini koruyarak /telegram'a yönlendir
+      window.location.href = `/telegram${window.location.search}`;
+    }
+  }, [location]);
+
   return (
     <Switch>
       <Route path="/" component={Home} />
@@ -58,6 +74,9 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // URL'deki Telegram parametrelerini kontrol et
+    const hasTelegramParams = checkTelegramParams();
+    
     // Initialize app 
     setTimeout(() => {
       setIsLoading(false);

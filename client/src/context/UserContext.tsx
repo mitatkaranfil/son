@@ -74,12 +74,20 @@ export const UserProvider = ({ children, telegramMode = false }: UserProviderPro
         console.log("UserContext - window.location.href:", window.location.href);
         console.log("UserContext - telegramMode:", telegramMode);
         
+        // Telegram modu etkinleştirildi mi kontrol et - Bu çok önemli!
+        if (!telegramMode) {
+          console.log("UserContext - Telegram mode is disabled, using test user");
+          const fallbackUser = createFallbackUser();
+          setUser(fallbackUser);
+          setUseFallback(true);
+          setIsLoading(false);
+          return;
+        }
+        
         // Test için manuel kullanıcı oluşturmayı zorla
         const forceTestUser = getUrlParameter('forceTestUser') === 'true';
-        
-        // Telegram kullanılmak istenmiyor ve telegramMode aktif değilse test kullanıcısı kullan
-        if (!telegramMode || forceTestUser) {
-          console.log("UserContext - Using test user mode (telegramMode is disabled or forceTestUser is enabled)");
+        if (forceTestUser) {
+          console.log("UserContext - Forced test user mode enabled via URL parameter");
           const fallbackUser = createFallbackUser();
           setUser(fallbackUser);
           setUseFallback(true);
@@ -317,8 +325,8 @@ export const UserProvider = ({ children, telegramMode = false }: UserProviderPro
         const urlParams = new URLSearchParams(window.location.search);
         const referralCode = urlParams.get("ref");
         
-        // Authenticate with Telegram
-        const authenticatedUser = await authenticateTelegramUser(referralCode || undefined);
+        // Telegram authentication - telegramMode=true olduğu için forceTelegram=true
+        const authenticatedUser = await authenticateTelegramUser(referralCode || undefined, true);
         
         console.log("UserContext - Authentication result:", authenticatedUser ? "Success" : "Failed");
         
@@ -517,8 +525,8 @@ export const UserProvider = ({ children, telegramMode = false }: UserProviderPro
       
       if (!useFallback) {
         try {
-          // Re-authenticate to get fresh user data
-          const refreshedUser = await authenticateTelegramUser();
+          // Re-authenticate to get fresh user data - telegramMode etkin olduğunda forceTelegram=true
+          const refreshedUser = await authenticateTelegramUser(undefined, true);
           
           if (!refreshedUser) {
             throw new Error("Failed to refresh user");
