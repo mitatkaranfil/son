@@ -12,9 +12,8 @@ RUN apk add --no-cache bash
 # Paket dosyalarını kopyala
 COPY package*.json ./
 
-# Sadece gerekli bağımlılıkları yükle, bellek kullanımını azaltmak için
-RUN npm install --only=production --no-audit --no-fund --prefer-offline --no-optional
-RUN npm install --no-save vite esbuild typescript @vitejs/plugin-react
+# Tüm bağımlılıkları yükle (dev dahil), build için gerekli
+RUN npm ci --no-audit --no-fund --prefer-offline
 
 # Kaynak kodunu kopyala
 COPY . .
@@ -27,7 +26,7 @@ ENV DEBUG=vite:*
 RUN npm run build:client || (echo "Client build failed" && exit 1)
 
 # Server uygulamasını derle
-RUN npm run build:server
+RUN npm run build:server || (echo "Server build failed" && exit 1)
 
 # Çalışma aşaması
 FROM node:18-alpine
@@ -45,6 +44,7 @@ RUN npm install --only=production --no-audit --no-fund --prefer-offline
 
 # Derleme aşamasından gerekli dosyaları kopyala
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/client/dist ./client/dist
 
 # Ortam değişkenlerini ayarla
 ENV NODE_ENV=production

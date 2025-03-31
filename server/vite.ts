@@ -2,7 +2,6 @@ import express, { type Express } from "express";
 import fs from "fs";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
-import { createServer as createViteServer, createLogger } from "vite";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 import { type Server } from "http";
@@ -19,10 +18,34 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
+// Vite'ı dinamik olarak yüklemek için yardımcı fonksiyon
+async function loadVite() {
+  try {
+    // Üretim ortamında çalışıyorsak, bu modülü yüklemeyi denemek yerine hata döndür
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Vite is not available in production mode');
+    }
+    
+    const viteModule = await import('vite');
+    return {
+      createViteServer: viteModule.createServer,
+      createLogger: viteModule.createLogger
+    };
+  } catch (error) {
+    console.error('Failed to import Vite:', error);
+    throw new Error('Failed to import Vite. Make sure it is installed in development dependencies.');
+  }
+}
+
 export async function setupVite(app: Express, server: Server) {
   try {
+    // Sadece geliştirme ortamında vite kullan
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Vite development server is not available in production');
+    }
+    
     // Dinamik olarak vite ve viteConfig import edilir
-    const { createServer: createViteServer, createLogger } = await import("vite");
+    const { createViteServer, createLogger } = await loadVite();
     const viteConfig = await import("../vite.config");
     const viteLogger = createLogger();
 
@@ -79,7 +102,7 @@ export async function setupVite(app: Express, server: Server) {
 
 export function serveStatic(app: Express) {
   try {
-    const distPath = path.resolve(__dirname, "public");
+    const distPath = path.resolve(__dirname, "..", "client", "dist");
 
     if (!fs.existsSync(distPath)) {
       log(`UYARI: Build klasörü bulunamadı: ${distPath}`);
@@ -106,5 +129,61 @@ export function serveStatic(app: Express) {
     app.use("*", (_req, res) => {
       res.status(500).send("Server configuration error");
     });
+  }
+}
+
+// Vite development server'ı kaydet
+export async function registerViteDevServer(app: Express): Promise<void> {
+  // Üretim ortamında Vite'ı yüklemeye çalışma
+  if (process.env.NODE_ENV === 'production') {
+    log('Production mode: Skipping Vite development server');
+    serveStatic(app);
+    return;
+  }
+  
+  try {
+    log("Vite development server başlatılıyor");
+    const { createViteServer } = await loadVite();
+    
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "custom",
+    });
+
+    app.use(vite.middlewares);
+
+    // Diğer rotaları işlemek için catch-all middleware
+    app.use("*", async (req, res, next) => {
+      const url = req.originalUrl;
+
+      try {
+        // Proje kök dizinine göre istemci index.html yolunu belirle
+        const clientRoot = path.resolve(__dirname, "..", "client");
+        const indexPath = path.join(clientRoot, "index.html");
+
+        if (!fs.existsSync(indexPath)) {
+          return next(new Error(`index.html not found: ${indexPath}`));
+        }
+
+        // index.html dosyasını oku
+        let template = fs.readFileSync(indexPath, "utf-8");
+        
+        // Vite transformation
+        template = await vite.transformIndexHtml(url, template);
+        
+        res.status(200).set({ "Content-Type": "text/html" }).end(template);
+      } catch (e) {
+        vite.ssrFixStacktrace(e as Error);
+        next(e);
+      }
+    });
+
+    log("Vite development server başarıyla başlatıldı");
+  } catch (error) {
+    console.error("Vite setup error:", error);
+    log("Vite development server başlatılamadı, statik dosyalar kullanılacak");
+    
+    // Başarısız olursa statik sunucuya düş
+    serveStatic(app);
   }
 }
