@@ -691,3 +691,32 @@ export function closeWebApp(): void {
     window.Telegram.WebApp.close();
   }
 }
+
+// Telegram API kontrol işlevi - API'nin çalışıp çalışmadığını kontrol eder
+export async function checkTelegramAPI() {
+  try {
+    console.log('TelegramApp - Checking API connectivity...');
+    const response = await fetch('/api/telegram/check');
+    const contentType = response.headers.get('content-type');
+    
+    // HTML yanıtı kontrolü
+    if (contentType && contentType.includes('text/html')) {
+      console.error('TelegramApp - API returned HTML instead of JSON. API endpoint may be misconfigured.');
+      const htmlContent = await response.text();
+      console.error('HTML Response:', htmlContent.substring(0, 200) + '...');
+      return false;
+    }
+    
+    if (!response.ok) {
+      console.error(`TelegramApp - API check failed with status: ${response.status}`);
+      return false;
+    }
+    
+    const data = await response.json();
+    console.log('TelegramApp - API check successful:', data);
+    return true;
+  } catch (error) {
+    console.error('TelegramApp - API check error:', error);
+    return false;
+  }
+}

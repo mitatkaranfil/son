@@ -9,101 +9,87 @@ function handleError(error: any, message: string): never {
   throw new Error(`${message}: ${error instanceof Error ? error.message : String(error)}`);
 }
 
-// Generic fetch fonksiyonu
-async function fetchAPI<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+// API istek yardımcı fonksiyonu - HTML yanıtlarını işler
+async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
-
-    // HTML yanıtı kontrolü
+    const response = await fetch(url, options);
     const contentType = response.headers.get('content-type');
+    
+    // HTML yanıtı kontrolü
     if (contentType && contentType.includes('text/html')) {
-      console.error(`API returned HTML instead of JSON for ${endpoint}`);
-      throw new Error('API returned HTML instead of JSON. Server may be misconfigured.');
+      console.error(`API Error: Endpoint ${url} returned HTML instead of JSON`);
+      const htmlContent = await response.text();
+      console.error('HTML Response:', htmlContent.substring(0, 200) + '...');
+      throw new Error('Unexpected HTML response from API');
     }
-
+    
     if (!response.ok) {
-      // JSON yanıt almayı dene
-      try {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `API error: ${response.status} ${response.statusText}`);
-      } catch (jsonError) {
-        // JSON parse edemezse text olarak oku
-        const errorText = await response.text();
-        throw new Error(`API error: ${response.status} ${response.statusText} - ${errorText.substring(0, 100)}`);
-      }
+      const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+      throw new Error(errorData.message || `API request failed with status ${response.status}`);
     }
-
+    
     return await response.json();
   } catch (error) {
-    console.error(`API request failed for ${endpoint}:`, error);
-    
-    // API erişimi için basit yeniden deneme mekanizması
-    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-      console.log(`Network error for ${endpoint}, retrying once...`);
-      try {
-        // Bir kez daha dene
-        const retryResponse = await fetch(`${API_BASE_URL}${endpoint}`, {
-          ...options,
-          headers: {
-            'Content-Type': 'application/json',
-            ...options.headers,
-          },
-        });
-        
-        if (!retryResponse.ok) {
-          throw new Error(`Retry failed with status: ${retryResponse.status}`);
-        }
-        
-        return await retryResponse.json();
-      } catch (retryError) {
-        console.error(`Retry also failed for ${endpoint}:`, retryError);
-        throw new Error(`API request failed after retry: ${retryError instanceof Error ? retryError.message : String(retryError)}`);
-      }
-    }
-    
-    handleError(error, `API request failed: ${endpoint}`);
+    console.error('API Request error:', error);
+    throw error;
   }
 }
 
 // User ile ilgili API çağrıları
 export async function getUserByTelegramId(telegramId: string): Promise<User | null> {
   try {
-    return await fetchAPI<User>(`/users/telegram/${telegramId}`);
+    // Hem standart API hem de Telegram-özel API'yi dene
+    try {
+      return await apiRequest<User>(`/api/telegram/user/${telegramId}`);
+    } catch (error) {
+      console.log('Falling back to standard API endpoint');
+      return await apiRequest<User>(`/api/users/telegram/${telegramId}`);
+    }
   } catch (error) {
-    console.warn(`User not found with telegramId ${telegramId}:`, error);
+    console.error('Error getting user by Telegram ID:', error);
     return null;
   }
 }
 
-export async function createUser(userData: Partial<User>): Promise<User> {
-  return await fetchAPI<User>('/users', {
-    method: 'POST',
-    body: JSON.stringify(userData),
-  });
+export async function createUser(userData: Partial<User>): Promise<User | null> {
+  try {
+    // Hem standart API hem de Telegram-özel API'yi dene
+    try {
+      return await apiRequest<User>('/api/telegram/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData)
+      });
+    } catch (error) {
+      console.log('Falling back to standard API endpoint');
+      return await apiRequest<User>('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData)
+      });
+    }
+  } catch (error) {
+    console.error('Error creating user:', error);
+    return null;
+  }
 }
 
 export async function updateUserPoints(userId: string, points: number): Promise<User> {
-  return await fetchAPI<User>(`/users/${userId}/points`, {
+  return await apiRequest<User>(`${API_BASE_URL}/users/${userId}/points`, {
     method: 'PATCH',
     body: JSON.stringify({ points }),
   });
 }
 
 export async function updateUserMiningSpeed(userId: string, speed: number): Promise<User> {
-  return await fetchAPI<User>(`/users/${userId}/mining-speed`, {
+  return await apiRequest<User>(`${API_BASE_URL}/users/${userId}/mining-speed`, {
     method: 'PATCH',
     body: JSON.stringify({ miningSpeed: speed }),
   });
 }
 
 export async function updateUserLastMiningTime(userId: string): Promise<User> {
-  return await fetchAPI<User>(`/users/${userId}/mining-time`, {
+  return await apiRequest<User>(`${API_BASE_URL}/users/${userId}/mining-time`, {
     method: 'PATCH',
   });
 }
@@ -111,41 +97,41 @@ export async function updateUserLastMiningTime(userId: string): Promise<User> {
 // Task ile ilgili API çağrıları
 export async function getTasks(type?: string): Promise<Task[]> {
   const endpoint = type ? `/tasks?type=${type}` : '/tasks';
-  return await fetchAPI<Task[]>(endpoint);
+  return await apiRequest<Task[]>(endpoint);
 }
 
 export async function getUserTasks(userId: string): Promise<UserTask[]> {
-  return await fetchAPI<UserTask[]>(`/users/${userId}/tasks`);
+  return await apiRequest<UserTask[]>(`${API_BASE_URL}/users/${userId}/tasks`);
 }
 
 export async function updateUserTaskProgress(userId: string, taskId: string, progress: number): Promise<UserTask> {
-  return await fetchAPI<UserTask>(`/users/${userId}/tasks/${taskId}`, {
+  return await apiRequest<UserTask>(`${API_BASE_URL}/users/${userId}/tasks/${taskId}`, {
     method: 'PATCH',
     body: JSON.stringify({ progress }),
   });
 }
 
 export async function completeUserTask(userId: string, taskId: string): Promise<UserTask> {
-  return await fetchAPI<UserTask>(`/users/${userId}/tasks/${taskId}/complete`, {
+  return await apiRequest<UserTask>(`${API_BASE_URL}/users/${userId}/tasks/${taskId}/complete`, {
     method: 'POST',
   });
 }
 
 // Boost ile ilgili API çağrıları
 export async function getBoostTypes(): Promise<BoostType[]> {
-  return await fetchAPI<BoostType[]>('/boosts');
+  return await apiRequest<BoostType[]>('/boosts');
 }
 
 export async function getUserBoosts(userId: string): Promise<UserBoost[]> {
-  return await fetchAPI<UserBoost[]>(`/users/${userId}/boosts`);
+  return await apiRequest<UserBoost[]>(`${API_BASE_URL}/users/${userId}/boosts`);
 }
 
 export async function getUserActiveBoosts(userId: string): Promise<UserBoost[]> {
-  return await fetchAPI<UserBoost[]>(`/users/${userId}/boosts/active`);
+  return await apiRequest<UserBoost[]>(`${API_BASE_URL}/users/${userId}/boosts/active`);
 }
 
 export async function createUserBoost(userId: string, boostTypeId: string): Promise<UserBoost> {
-  return await fetchAPI<UserBoost>(`/users/${userId}/boosts`, {
+  return await apiRequest<UserBoost>(`${API_BASE_URL}/users/${userId}/boosts`, {
     method: 'POST',
     body: JSON.stringify({ boostTypeId }),
   });
@@ -153,7 +139,7 @@ export async function createUserBoost(userId: string, boostTypeId: string): Prom
 
 // Referral ile ilgili API çağrıları
 export async function getUserReferrals(userId: string): Promise<Referral[]> {
-  return await fetchAPI<Referral[]>(`/users/${userId}/referrals`);
+  return await apiRequest<Referral[]>(`${API_BASE_URL}/users/${userId}/referrals`);
 }
 
 export async function getReferralCount(userId: string): Promise<number> {
@@ -162,7 +148,7 @@ export async function getReferralCount(userId: string): Promise<number> {
 }
 
 export async function createReferral(referrerId: string, referredId: string, points: number = 100): Promise<Referral> {
-  return await fetchAPI<Referral>('/referrals', {
+  return await apiRequest<Referral>(`${API_BASE_URL}/referrals`, {
     method: 'POST',
     body: JSON.stringify({ referrerId, referredId, points }),
   });
@@ -170,42 +156,42 @@ export async function createReferral(referrerId: string, referredId: string, poi
 
 // Admin API fonksiyonları
 export async function createTask(task: Partial<Task>): Promise<Task> {
-  return await fetchAPI<Task>('/admin/tasks', {
+  return await apiRequest<Task>('/admin/tasks', {
     method: 'POST',
     body: JSON.stringify(task),
   });
 }
 
 export async function updateTask(id: string, task: Partial<Task>): Promise<Task> {
-  return await fetchAPI<Task>(`/admin/tasks/${id}`, {
+  return await apiRequest<Task>(`/admin/tasks/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(task),
   });
 }
 
 export async function deleteTask(id: string): Promise<boolean> {
-  await fetchAPI<void>(`/admin/tasks/${id}`, {
+  await apiRequest<void>(`/admin/tasks/${id}`, {
     method: 'DELETE',
   });
   return true;
 }
 
 export async function createBoostType(boostType: Partial<BoostType>): Promise<BoostType> {
-  return await fetchAPI<BoostType>('/admin/boosts', {
+  return await apiRequest<BoostType>('/admin/boosts', {
     method: 'POST',
     body: JSON.stringify(boostType),
   });
 }
 
 export async function updateBoostType(id: string, boostType: Partial<BoostType>): Promise<BoostType> {
-  return await fetchAPI<BoostType>(`/admin/boosts/${id}`, {
+  return await apiRequest<BoostType>(`/admin/boosts/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(boostType),
   });
 }
 
 export async function deleteBoostType(id: string): Promise<boolean> {
-  await fetchAPI<void>(`/admin/boosts/${id}`, {
+  await apiRequest<void>(`/admin/boosts/${id}`, {
     method: 'DELETE',
   });
   return true;
