@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { 
-  getAllTasks, 
-  getAllBoostTypes, 
+  getTasks as getAllTasks, 
+  getBoostTypes as getAllBoostTypes, 
   createTask, 
   updateTask, 
   deleteTask,
   createBoostType,
   updateBoostType,
   deleteBoostType
-} from "@/lib/firebase";
+} from "@/lib/api";
 import { Task, BoostType } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { 

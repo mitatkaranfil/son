@@ -126,4 +126,47 @@ export async function createReferral(referrerId: string, referredId: string, poi
     method: 'POST',
     body: JSON.stringify({ referrerId, referredId, points }),
   });
+}
+
+// Admin API fonksiyonları
+export async function createTask(task: Partial<Task>): Promise<Task> {
+  return await fetchAPI<Task>('/admin/tasks', {
+    method: 'POST',
+    body: JSON.stringify(task),
+  });
+}
+
+export async function updateTask(id: string, task: Partial<Task>): Promise<Task> {
+  return await fetchAPI<Task>(`/admin/tasks/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(task),
+  });
+}
+
+export async function deleteTask(id: string): Promise<boolean> {
+  await fetchAPI<void>(`/admin/tasks/${id}`, {
+    method: 'DELETE',
+  });
+  return true;
+}
+
+export async function createBoostType(boostType: Partial<BoostType>): Promise<BoostType> {
+  return await fetchAPI<BoostType>('/admin/boosts', {
+    method: 'POST',
+    body: JSON.stringify(boostType),
+  });
+}
+
+export async function updateBoostType(id: string, boostType: Partial<BoostType>): Promise<BoostType> {
+  return await fetchAPI<BoostType>(`/admin/boosts/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(boostType),
+  });
+}
+
+export async function deleteBoostType(id: string): Promise<boolean> {
+  await fetchAPI<void>(`/admin/boosts/${id}`, {
+    method: 'DELETE',
+  });
+  return true;
 } 
