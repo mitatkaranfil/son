@@ -59,12 +59,8 @@ COPY server/ ./server/
 COPY client-dist/ ./client-dist/
 COPY .env ./
 
-# Start script
-COPY start.sh ./
-RUN chmod +x start.sh
-
 # Expose port
 EXPOSE 8080
 
 # Start the application
-CMD ["./start.sh"]
+CMD ["node", "-r", "dotenv/config", "--import", "tsx", "server/index.ts"]
