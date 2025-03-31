@@ -97,6 +97,29 @@ declare global {
         };
       };
     };
+    // Alternatif Telegram WebApp API
+    TelegramWebApp?: {
+      ready(): void;
+      expand(): void;
+      close(): void;
+      isExpanded: boolean;
+      initDataUnsafe: any;
+      initData: string;
+      colorScheme: string;
+      viewportHeight: number;
+      viewportStableHeight: number;
+      sendData(data: any): void;
+      openLink(url: string): void;
+      showAlert(message: string, callback?: Function): void;
+      showConfirm(message: string, callback?: Function): void;
+      MainButton: any;
+      BackButton: any;
+      onEvent(eventType: string, callback: Function): void;
+      offEvent(eventType: string, callback: Function): void;
+      version: string;
+      platform: string;
+      themeParams: any;
+    };
   }
 }
 
@@ -237,35 +260,42 @@ export function getTelegramUser(): {
 } | null {
   try {
     console.log('Checking Telegram environment...');
-    console.log('isTelegramWebApp():', isTelegramWebApp());
-    console.log('window.Telegram exists:', !!window.Telegram);
-    console.log('window.Telegram?.WebApp exists:', !!window.Telegram?.WebApp);
-    console.log('initDataUnsafe exists:', !!window.Telegram?.WebApp?.initDataUnsafe);
     
-    // Daha detaylı WebApp kontrolleri
-    if (window.Telegram?.WebApp) {
-      console.log('WebApp init data:', JSON.stringify(window.Telegram.WebApp.initDataUnsafe));
-      console.log('user exists:', !!window.Telegram?.WebApp?.initDataUnsafe?.user);
+    // Check if window.Telegram exists
+    const hasTelegram = typeof window !== 'undefined' && !!window.Telegram;
+    
+    // Check if window.TelegramWebApp exists (alternative API)
+    const hasTelegramWebApp = typeof window !== 'undefined' && !!window.TelegramWebApp;
+    
+    console.log('window.Telegram exists:', hasTelegram);
+    console.log('window.TelegramWebApp exists:', hasTelegramWebApp);
+    
+    // Try getting user from window.Telegram.WebApp
+    if (hasTelegram && window.Telegram.WebApp?.initDataUnsafe?.user) {
+      const user = window.Telegram.WebApp.initDataUnsafe.user;
+      console.log('User found in window.Telegram.WebApp:', user);
       
-      if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
-        console.log('Telegram user found:', JSON.stringify(window.Telegram.WebApp.initDataUnsafe.user));
-        
-        // Telegram'dan gerçekten kullanıcı bilgisi alabildik, bunu kullanalım
-        const user = window.Telegram.WebApp.initDataUnsafe.user;
-        console.log('Telegram user data found:', user);
-
-        return {
-          telegramId: user.id.toString(),
-          firstName: user.first_name,
-          lastName: user.last_name,
-          username: user.username,
-          photoUrl: user.photo_url
-        };
-      } else {
-        console.log('No Telegram user in initDataUnsafe');
-      }
-    } else {
-      console.log('WebApp object not available');
+      return {
+        telegramId: user.id.toString(),
+        firstName: user.first_name,
+        lastName: user.last_name,
+        username: user.username,
+        photoUrl: user.photo_url
+      };
+    }
+    
+    // Try getting user from alternative TelegramWebApp
+    if (hasTelegramWebApp && window.TelegramWebApp?.initDataUnsafe?.user) {
+      const user = window.TelegramWebApp.initDataUnsafe.user;
+      console.log('User found in window.TelegramWebApp:', user);
+      
+      return {
+        telegramId: user.id.toString(),
+        firstName: user.first_name || user.firstName,
+        lastName: user.last_name || user.lastName,
+        username: user.username,
+        photoUrl: user.photo_url || user.photoUrl
+      };
     }
     
     // Bu noktaya kadar gerçek Telegram kullanıcı verisi elde edemedik
