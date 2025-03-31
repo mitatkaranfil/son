@@ -20,11 +20,7 @@ RUN npm config set loglevel warn \
     && npm install --no-audit --no-fund --prefer-offline \
     && npm cache clean --force
 
-# Önce server klasörünü kopyala ve içeriğini kontrol et
-COPY server ./server/
-RUN ls -la server/
-
-# Sonra tüm diğer dosyaları kopyala
+# Tüm kaynak kodunu kopyala
 COPY . .
 
 # Typescript ve esbuild ile ilgili sorunlara karşı build öncesi önlem
@@ -37,8 +33,11 @@ ENV DEBUG=vite:*
 # Client uygulamasını derle
 RUN npm run build:client || (echo "Client build failed" && exit 1)
 
-# Server uygulamasını derle - verbose mod ile çalıştır
-RUN NODE_OPTIONS="--max-old-space-size=1024 --trace-warnings" npm run build:server || (echo "Server build failed" && exit 1)
+# Server klasörünü dist'e kopyala - build yerine doğrudan tüm dosyaları kopyalayalım
+RUN mkdir -p dist && cp -r server/* dist/
+
+# Server uygulamasını derle - alternatif yaklaşım
+RUN cd dist && node --trace-warnings ../node_modules/esbuild/bin/esbuild index.ts --platform=node --bundle --format=esm --outfile=index.js || (echo "Manual Server build failed" && exit 1)
 
 # Çalışma aşaması - Daha küçük bir base image kullan
 FROM node:18-alpine AS runtime
