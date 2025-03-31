@@ -228,6 +228,11 @@ export const UserProvider = ({ children }: UserProviderProps) => {
         
         // Doğrudan erişim başarısız olduysa veya API hatası olduysa, normal yöntemi deneyelim
         console.log("UserContext - Attempting Telegram authentication via library function");
+        
+        // Referral code için URL parametresini al
+        const urlParams = new URLSearchParams(window.location.search);
+        const referralCode = urlParams.get("ref");
+        
         // Authenticate with Telegram
         const authenticatedUser = await authenticateTelegramUser(referralCode || undefined);
         
