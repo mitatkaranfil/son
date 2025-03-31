@@ -1,125 +1,68 @@
-import { neon } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-http';
-import * as schema from '../shared/schema';
-import { sql } from 'drizzle-orm';
+import { createClient } from '@supabase/supabase-js';
+import { fileURLToPath } from 'url';
 
 // Konsola bilgi yazdırma fonksiyonu
-export function log(message: string) {
+export function log(message: string, ...args: any[]) {
   const date = new Date().toLocaleString();
-  console.log(`[${date}] [DB] ${message}`);
+  console.log(`[${date}] [DB] ${message}`, ...args);
 }
 
-// Neon PostgreSQL veritabanı URL'ini al
-const databaseUrl = process.env.DATABASE_URL || 'postgres://default:password@localhost:5432/cosmodb';
+// Supabase URL ve Anahtar'ı al
+const supabaseUrl = 'https://lfalfdmfehcwnnqxkycj.supabase.co';
+const supabaseKey = process.env.SUPABASE_KEY;
 
-// SQL bağlantısı oluştur
-let sqlConnection: any;
-
-try {
-    // Neon bağlantı yapılandırması
-    sqlConnection = neon(databaseUrl);
-    log('SQL bağlantısı oluşturuldu');
-} catch (error) {
-    log(`SQL bağlantısı oluşturulurken hata: ${error instanceof Error ? error.message : String(error)}`);
-    throw error;
+if (!supabaseKey) {
+  throw new Error('SUPABASE_KEY ortam değişkeni tanımlanmalıdır');
 }
 
-// Drizzle örneğini oluştur
-export const db = drizzle(sqlConnection, { schema });
+// Supabase istemcisini oluştur
+export const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Migration fonksiyonu
+// Migration fonksiyonu - SQL query doğrudan kullanarak
 export async function createTables() {
   try {
     log('Tabloları oluşturma işlemi başlatılıyor...');
     
-    // Tabloları sırayla oluştur
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS ${schema.users} (
-        id SERIAL PRIMARY KEY,
-        telegram_id TEXT NOT NULL UNIQUE,
-        first_name TEXT NOT NULL,
-        last_name TEXT,
-        username TEXT,
-        photo_url TEXT,
-        level INTEGER NOT NULL DEFAULT 1,
-        points INTEGER NOT NULL DEFAULT 0,
-        mining_speed INTEGER NOT NULL DEFAULT 10,
-        last_mining_time TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        referral_code TEXT NOT NULL UNIQUE,
-        referred_by TEXT,
-        join_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        completed_tasks_count INTEGER NOT NULL DEFAULT 0,
-        boost_usage_count INTEGER NOT NULL DEFAULT 0,
-        role ${schema.userRoleEnum} NOT NULL DEFAULT 'user',
-        password TEXT
-      )
-    `);
-
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS ${schema.tasks} (
-        id SERIAL PRIMARY KEY,
-        title TEXT NOT NULL,
-        description TEXT NOT NULL,
-        type ${schema.taskTypeEnum} NOT NULL,
-        points INTEGER NOT NULL,
-        required_amount INTEGER NOT NULL DEFAULT 1,
-        is_active BOOLEAN NOT NULL DEFAULT true,
-        telegram_action TEXT,
-        telegram_target TEXT
-      )
-    `);
-
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS ${schema.userTasks} (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES ${schema.users}(id),
-        task_id INTEGER NOT NULL REFERENCES ${schema.tasks}(id),
-        progress INTEGER NOT NULL DEFAULT 0,
-        is_completed BOOLEAN NOT NULL DEFAULT false,
-        completed_at TIMESTAMP WITH TIME ZONE,
-        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS ${schema.boostTypes} (
-        id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT NOT NULL,
-        multiplier INTEGER NOT NULL,
-        duration_hours INTEGER NOT NULL,
-        price INTEGER NOT NULL,
-        is_active BOOLEAN NOT NULL DEFAULT true,
-        icon_name TEXT NOT NULL DEFAULT 'rocket',
-        color_class TEXT NOT NULL DEFAULT 'blue',
-        is_popular BOOLEAN NOT NULL DEFAULT false
-      )
-    `);
-
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS ${schema.userBoosts} (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES ${schema.users}(id),
-        boost_type_id INTEGER NOT NULL REFERENCES ${schema.boostTypes}(id),
-        start_time TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        end_time TIMESTAMP WITH TIME ZONE NOT NULL,
-        is_active BOOLEAN NOT NULL DEFAULT true
-      )
-    `);
-
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS ${schema.referrals} (
-        id SERIAL PRIMARY KEY,
-        referrer_id INTEGER NOT NULL REFERENCES ${schema.users}(id),
-        referred_id INTEGER NOT NULL REFERENCES ${schema.users}(id),
-        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    log('Tablolar başarıyla oluşturuldu');
+    // SQL ile doğrudan oluştur
+    const { error } = await supabase.from('users').select('count').limit(1);
+    
+    if (error && error.code === '42P01') { // Tablo bulunamadı hatası
+      log('Users tablosu bulunamadı, oluşturuluyor...');
+      
+      // PostgreSQL SQL Query kullanarak tablo oluştur
+      const { error: createError } = await supabase
+        .query(`
+          CREATE TABLE IF NOT EXISTS public.users (
+            id SERIAL PRIMARY KEY,
+            telegram_id TEXT UNIQUE,
+            username TEXT,
+            first_name TEXT,
+            last_name TEXT,
+            points INTEGER DEFAULT 0,
+            referral_code TEXT UNIQUE,
+            referred_by TEXT,
+            role TEXT DEFAULT 'user',
+            password TEXT,
+            last_mining_time TIMESTAMP,
+            created_at TIMESTAMP DEFAULT NOW()
+          );
+        `);
+      
+      if (createError) {
+        throw createError;
+      }
+      
+      log('Users tablosu başarıyla oluşturuldu');
+    } else if (error) {
+      throw error;
+    } else {
+      log('Users tablosu zaten mevcut');
+    }
+    
+    log('Tablo işlemleri başarıyla tamamlandı');
     return true;
   } catch (error) {
-    log(`Tablo oluşturma hatası: ${error instanceof Error ? error.message : String(error)}`);
+    log(`Tablo oluşturma hatası: ${JSON.stringify(error, null, 2)}`);
     return false;
   }
 }
@@ -127,50 +70,67 @@ export async function createTables() {
 // Veritabanını başlat
 export async function initializeDatabase() {
   try {
-    // Bağlantıyı test et
-    const result = await sqlConnection`SELECT 1 as test`;
-    if (result[0]?.test === 1) {
-      log('Veritabanı bağlantısı başarılı');
-    } else {
-      throw new Error('Veritabanı bağlantısı başarısız');
-    }
-
-    // Tabloları oluştur
-    await createTables();
-
-    // Tabloların oluşturulduğunu doğrula
-    const tables = await sqlConnection`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public'
-    `;
+    log('Veritabanı başlatılıyor...');
     
-    log('Oluşturulan tablolar:', tables.map(t => t.table_name));
+    // Tabloları oluştur
+    const tablesCreated = await createTables();
+    if (!tablesCreated) {
+      throw new Error('Tablolar oluşturulamadı');
+    }
+    
+    // Users tablosunu kontrol et
+    const { data, error } = await supabase
+      .from('users')
+      .select('count');
+    
+    if (error) {
+      throw error;
+    }
+    
+    log('Veritabanı başarıyla başlatıldı');
     return true;
   } catch (error) {
-    log(`Veritabanı başlatılamadı: ${error instanceof Error ? error.message : String(error)}`);
-    return false;
+    log(`Veritabanı başlatılamadı: ${JSON.stringify(error, null, 2)}`);
+    throw new Error('Veritabanı başlatılamadı');
   }
 }
 
-// Initialize database connection
-initializeDatabase().then(success => {
-  if (success) {
-    log('Veritabanı başarıyla başlatıldı');
-  } else {
-    log('Veritabanı başlatılamadı, ancak uygulama çalışmaya devam edecek');
-  }
-});
-
-// Veritabanı bağlantısını test et
+// Bağlantıyı test et
 export async function testConnection() {
   try {
     log('Veritabanı bağlantısı test ediliyor...');
-    const result = await sqlConnection`SELECT NOW()`;
-    log(`Veritabanı bağlantısı başarılı: ${result[0].now}`);
+    
+    // Supabase bağlantısını test et
+    const { data, error } = await supabase.auth.getSession();
+
+    if (error) {
+      throw error;
+    }
+
+    log('Veritabanı bağlantısı başarılı');
     return true;
   } catch (error) {
-    log(`Veritabanı bağlantı hatası: ${error instanceof Error ? error.message : String(error)}`);
+    log(`Veritabanı bağlantısı hatası: ${error instanceof Error ? error.message : String(error)}`);
     return false;
   }
 }
+
+// Database başlatma işlemini başlat
+export function setupDatabase() {
+  return initializeDatabase()
+    .then(() => {
+      log('Veritabanı başarıyla başlatıldı');
+      return true;
+    })
+    .catch(error => {
+      log('Veritabanı başlatılamadı, ancak uygulama çalışmaya devam edecek');
+      console.error(error);
+      return false;
+    });
+}
+
+// ES modülleri için ana modül kontrolü (require.main === module yerine)
+// Bu kısmı kaldırdık, çünkü ES modüllerinde bu tür otomatik çalıştırma için
+// farklı bir yaklaşım kullanmamız gerekiyor.
+// Bunun yerine, diğer modüllerin setupDatabase() fonksiyonunu çağırarak
+// veritabanını başlatmasını sağlayacağız.

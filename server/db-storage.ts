@@ -1,5 +1,5 @@
 import { eq, and } from "drizzle-orm";
-import { db, log } from "./db.ts";
+import { supabase, log } from "./db.ts";
 import {
   users, User, InsertUser,
   tasks, Task, InsertTask,
@@ -16,8 +16,14 @@ export class NeonStorage implements IStorage {
   // User methods
   async getUserByTelegramId(telegramId: string): Promise<User | undefined> {
     try {
-      const result = await db.select().from(users).where(eq(users.telegramId, telegramId));
-      return result.length > 0 ? result[0] : undefined;
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('telegramId', telegramId)
+        .single();
+
+      if (error) throw error;
+      return data;
     } catch (error) {
       log(`getUserByTelegramId error: ${error instanceof Error ? error.message : String(error)}`);
       return undefined;
@@ -26,8 +32,14 @@ export class NeonStorage implements IStorage {
   
   async getUserByUsername(username: string): Promise<User | undefined> {
     try {
-      const result = await db.select().from(users).where(eq(users.username, username));
-      return result.length > 0 ? result[0] : undefined;
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', username)
+        .single();
+
+      if (error) throw error;
+      return data;
     } catch (error) {
       log(`getUserByUsername error: ${error instanceof Error ? error.message : String(error)}`);
       return undefined;
@@ -36,8 +48,14 @@ export class NeonStorage implements IStorage {
   
   async createUser(userData: InsertUser): Promise<User> {
     try {
-      const result = await db.insert(users).values(userData).returning();
-      return result[0];
+      const { data, error } = await supabase
+        .from('users')
+        .insert([userData])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
     } catch (error) {
       log(`createUser error: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
@@ -49,10 +67,12 @@ export class NeonStorage implements IStorage {
       const user = await this.getUserById(userId);
       if (!user) return false;
       
-      await db.update(users)
-        .set({ points: user.points + pointsToAdd })
-        .where(eq(users.id, userId));
-      
+      const { error } = await supabase
+        .from('users')
+        .update({ points: user.points + pointsToAdd })
+        .eq('id', userId);
+
+      if (error) throw error;
       return true;
     } catch (error) {
       log(`updateUserPoints error: ${error instanceof Error ? error.message : String(error)}`);
@@ -62,10 +82,12 @@ export class NeonStorage implements IStorage {
   
   async updateUserLastMiningTime(userId: number): Promise<boolean> {
     try {
-      await db.update(users)
-        .set({ lastMiningTime: new Date() })
-        .where(eq(users.id, userId));
-      
+      const { error } = await supabase
+        .from('users')
+        .update({ lastMiningTime: new Date() })
+        .eq('id', userId);
+
+      if (error) throw error;
       return true;
     } catch (error) {
       log(`updateUserLastMiningTime error: ${error instanceof Error ? error.message : String(error)}`);
@@ -87,12 +109,15 @@ export class NeonStorage implements IStorage {
         updateData.password = password;
       }
       
-      const result = await db.update(users)
-        .set(updateData)
-        .where(eq(users.id, userId))
-        .returning();
-      
-      return result.length > 0 ? result[0] : undefined;
+      const { data, error } = await supabase
+        .from('users')
+        .update(updateData)
+        .eq('id', userId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
     } catch (error) {
       log(`updateUserRole error: ${error instanceof Error ? error.message : String(error)}`);
       return undefined;
@@ -101,8 +126,14 @@ export class NeonStorage implements IStorage {
   
   async getUserById(userId: number): Promise<User | undefined> {
     try {
-      const result = await db.select().from(users).where(eq(users.id, userId));
-      return result.length > 0 ? result[0] : undefined;
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) throw error;
+      return data;
     } catch (error) {
       log(`getUserById error: ${error instanceof Error ? error.message : String(error)}`);
       return undefined;
@@ -111,7 +142,13 @@ export class NeonStorage implements IStorage {
   
   async getUsersByReferralCode(referralCode: string): Promise<User[]> {
     try {
-      return await db.select().from(users).where(eq(users.referralCode, referralCode));
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('referralCode', referralCode);
+
+      if (error) throw error;
+      return data;
     } catch (error) {
       log(`getUsersByReferralCode error: ${error instanceof Error ? error.message : String(error)}`);
       return [];
@@ -120,7 +157,12 @@ export class NeonStorage implements IStorage {
   
   async getAllUsers(): Promise<User[]> {
     try {
-      return await db.select().from(users);
+      const { data, error } = await supabase
+        .from('users')
+        .select('*');
+
+      if (error) throw error;
+      return data;
     } catch (error) {
       log(`getAllUsers error: ${error instanceof Error ? error.message : String(error)}`);
       return [];
@@ -131,10 +173,22 @@ export class NeonStorage implements IStorage {
   async getTasks(type?: string): Promise<Task[]> {
     try {
       if (type) {
-        return await db.select().from(tasks)
-          .where(and(eq(tasks.type, type as "daily" | "weekly" | "special"), eq(tasks.isActive, true)));
+        const { data, error } = await supabase
+          .from('tasks')
+          .select('*')
+          .eq('type', type as "daily" | "weekly" | "special")
+          .eq('isActive', true);
+
+        if (error) throw error;
+        return data;
       }
-      return await db.select().from(tasks).where(eq(tasks.isActive, true));
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('isActive', true);
+
+      if (error) throw error;
+      return data;
     } catch (error) {
       log(`getTasks error: ${error instanceof Error ? error.message : String(error)}`);
       return [];
@@ -143,8 +197,14 @@ export class NeonStorage implements IStorage {
   
   async getTaskById(id: number): Promise<Task | undefined> {
     try {
-      const result = await db.select().from(tasks).where(eq(tasks.id, id));
-      return result.length > 0 ? result[0] : undefined;
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+      return data;
     } catch (error) {
       log(`getTaskById error: ${error instanceof Error ? error.message : String(error)}`);
       return undefined;
@@ -153,8 +213,14 @@ export class NeonStorage implements IStorage {
   
   async createTask(taskData: InsertTask): Promise<Task> {
     try {
-      const result = await db.insert(tasks).values(taskData).returning();
-      return result[0];
+      const { data, error } = await supabase
+        .from('tasks')
+        .insert([taskData])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
     } catch (error) {
       log(`createTask error: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
@@ -163,12 +229,15 @@ export class NeonStorage implements IStorage {
   
   async updateTask(id: number, taskData: Partial<Task>): Promise<Task | undefined> {
     try {
-      const result = await db.update(tasks)
-        .set(taskData)
-        .where(eq(tasks.id, id))
-        .returning();
-      
-      return result.length > 0 ? result[0] : undefined;
+      const { data, error } = await supabase
+        .from('tasks')
+        .update(taskData)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
     } catch (error) {
       log(`updateTask error: ${error instanceof Error ? error.message : String(error)}`);
       return undefined;
@@ -177,8 +246,13 @@ export class NeonStorage implements IStorage {
   
   async deleteTask(id: number): Promise<boolean> {
     try {
-      const result = await db.delete(tasks).where(eq(tasks.id, id)).returning();
-      return result.length > 0;
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      return true;
     } catch (error) {
       log(`deleteTask error: ${error instanceof Error ? error.message : String(error)}`);
       return false;
@@ -191,19 +265,24 @@ export class NeonStorage implements IStorage {
   async getUserTasks(userId: number): Promise<(UserTask & { task: Task })[]> {
     // Bu implementasyon örnek olarak eklenmiştir
     try {
-      const userTasksResult = await db.select().from(userTasks)
-        .where(eq(userTasks.userId, userId));
-      
+      const userTasksResult = await supabase
+        .from('userTasks')
+        .select('*')
+        .eq('userId', userId);
+
       const result: (UserTask & { task: Task })[] = [];
       
-      for (const userTask of userTasksResult) {
-        const taskResult = await db.select().from(tasks)
-          .where(eq(tasks.id, userTask.taskId));
-        
-        if (taskResult.length > 0) {
+      for (const userTask of userTasksResult.data) {
+        const taskResult = await supabase
+          .from('tasks')
+          .select('*')
+          .eq('id', userTask.taskId)
+          .single();
+
+        if (taskResult.data) {
           result.push({
             ...userTask,
-            task: taskResult[0]
+            task: taskResult.data
           });
         }
       }
@@ -278,13 +357,23 @@ export class NeonStorage implements IStorage {
   
   async createUserBoost(userBoost: InsertUserBoost): Promise<UserBoost & { boostType: BoostType }> {
     try {
-      const result = await db.insert(userBoosts).values(userBoost).returning();
-      const boostTypeResult = await db.select().from(boostTypes).where(eq(boostTypes.id, userBoost.boostTypeId));
-      
-      if (result.length > 0 && boostTypeResult.length > 0) {
+      const { data, error } = await supabase
+        .from('userBoosts')
+        .insert([userBoost])
+        .select()
+        .single();
+
+      if (error) throw error;
+      const boostTypeResult = await supabase
+        .from('boostTypes')
+        .select('*')
+        .eq('id', userBoost.boostTypeId)
+        .single();
+
+      if (boostTypeResult.data) {
         return {
-          ...result[0],
-          boostType: boostTypeResult[0]
+          ...data,
+          boostType: boostTypeResult.data
         };
       }
       
@@ -302,16 +391,24 @@ export class NeonStorage implements IStorage {
   
   async getReferrals(referrerId: number): Promise<(Referral & { referredUser: User })[]> {
     try {
-      const referralsResult = await db.select().from(referrals).where(eq(referrals.referrerId, referrerId));
+      const referralsResult = await supabase
+        .from('referrals')
+        .select('*')
+        .eq('referrerId', referrerId);
+
       const result: (Referral & { referredUser: User })[] = [];
       
-      for (const referral of referralsResult) {
-        const userResult = await db.select().from(users).where(eq(users.id, referral.referredId));
-        
-        if (userResult.length > 0) {
+      for (const referral of referralsResult.data) {
+        const userResult = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', referral.referredId)
+          .single();
+
+        if (userResult.data) {
           result.push({
             ...referral,
-            referredUser: userResult[0]
+            referredUser: userResult.data
           });
         }
       }

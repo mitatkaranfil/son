@@ -5,7 +5,7 @@ import passport from "passport";
 import { registerRoutes } from "./routes.ts";
 import { registerViteDevServer, serveStatic } from "./vite.ts";
 import { authRoutes, createAdminUser } from "./auth.ts";
-import { log, initializeDatabase } from "./db.ts";
+import { log, setupDatabase } from "./db.ts"; // initializeDatabase yerine setupDatabase kullanıyoruz
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -31,7 +31,7 @@ app.use(express.urlencoded({ extended: false }));
 // İlk admin kullanıcısını oluştur
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
-const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || "123456789";
+const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || "8000260089"; // Admin Telegram ID güncellendi
 
 // Session middleware
 app.use(
@@ -127,9 +127,11 @@ app.get('/telegram', (req: Request, res: Response) => {
 app.use('/api', isAuthenticated);
 
 async function startServer() {
+  console.log('Using in-memory storage for development');
+  
   try {
-    // Veritabanını başlat
-    const dbInitialized = await initializeDatabase();
+    // Veritabanını başlat - setupDatabase kullanıyoruz
+    const dbInitialized = await setupDatabase();
     if (!dbInitialized) {
       throw new Error('Veritabanı başlatılamadı');
     }
@@ -159,8 +161,8 @@ async function startServer() {
     const server = await registerRoutes(app);
 
     // Sunucuyu başlat
-    server.listen(process.env.PORT || 3000, () => {
-      console.log(`[express] serving on port ${process.env.PORT || 3000}`);
+    server.listen(process.env.PORT || 3001, () => {
+      console.log(`[express] serving on port ${process.env.PORT || 3001}`);
     });
   } catch (error) {
     log(`Sunucu başlatılamadı: ${error instanceof Error ? error.message : String(error)}`);
