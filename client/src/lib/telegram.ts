@@ -210,40 +210,62 @@ export function isTelegramWebApp(): boolean {
 export function initializeTelegramApp(): void {
   console.log('Initializing Telegram WebApp');
   try {
-    if (isTelegramWebApp()) {
-      console.log('Running in Telegram WebApp environment');
+    // Check if window.Telegram exists
+    const hasTelegram = typeof window !== 'undefined' && !!window.Telegram;
+    
+    // Check if window.TelegramWebApp exists (alternative API)
+    const hasTelegramWebApp = typeof window !== 'undefined' && !!window.TelegramWebApp;
+    
+    console.log('window.Telegram exists:', hasTelegram);
+    console.log('window.TelegramWebApp exists:', hasTelegramWebApp);
+    
+    if (hasTelegram && window.Telegram?.WebApp) {
+      // Initialize window.Telegram.WebApp
+      console.log('Initializing window.Telegram.WebApp');
       
-      // Check if we're actually in Telegram environment
-      if (window.Telegram?.WebApp) {
-        // Inform Telegram that our app is ready
-        try {
-          window.Telegram.WebApp.ready();
-          console.log('WebApp.ready() called');
-        } catch (readyError) {
-          console.warn('Error calling WebApp.ready():', readyError);
-        }
-        
-        // Set dark theme colors for app
-        try {
-          window.Telegram.WebApp.setHeaderColor('#121212');
-          window.Telegram.WebApp.setBackgroundColor('#121212');
-          console.log('Theme colors set');
-        } catch (colorError) {
-          console.warn('Error setting theme colors:', colorError);
-        }
-        
-        // Expand to take full screen if needed
-        try {
-          window.Telegram.WebApp.expand();
-          console.log('WebApp.expand() called');
-        } catch (expandError) {
-          console.warn('Error calling WebApp.expand():', expandError);
-        }
-      } else {
-        console.log('Development mode: Skipping actual Telegram API calls');
+      // Inform Telegram that our app is ready
+      try {
+        window.Telegram.WebApp.ready();
+        console.log('WebApp.ready() called');
+      } catch (readyError) {
+        console.warn('Error calling WebApp.ready():', readyError);
+      }
+      
+      // Set dark theme colors for app
+      try {
+        window.Telegram.WebApp.setHeaderColor('#121212');
+        window.Telegram.WebApp.setBackgroundColor('#121212');
+        console.log('Theme colors set');
+      } catch (colorError) {
+        console.warn('Error setting theme colors:', colorError);
+      }
+      
+      // Expand to take full screen if needed
+      try {
+        window.Telegram.WebApp.expand();
+        console.log('WebApp.expand() called');
+      } catch (expandError) {
+        console.warn('Error calling WebApp.expand():', expandError);
+      }
+    } else if (hasTelegramWebApp && window.TelegramWebApp) {
+      // Initialize window.TelegramWebApp (alternative API)
+      console.log('Initializing window.TelegramWebApp (alternative API)');
+      
+      try {
+        window.TelegramWebApp.ready();
+        console.log('TelegramWebApp.ready() called');
+      } catch (readyError) {
+        console.warn('Error calling TelegramWebApp.ready():', readyError);
+      }
+      
+      try {
+        window.TelegramWebApp.expand();
+        console.log('TelegramWebApp.expand() called');
+      } catch (expandError) {
+        console.warn('Error calling TelegramWebApp.expand():', expandError);
       }
     } else {
-      console.warn('Not running inside Telegram WebApp');
+      console.log('Development mode: No Telegram API available');
     }
   } catch (error) {
     console.error('Error initializing Telegram WebApp:', error);
@@ -422,8 +444,18 @@ function generateReferralCode(length = 6): string {
 // Show an alert using Telegram's native UI
 export function showAlert(message: string): Promise<void> {
   return new Promise((resolve) => {
-    if (isTelegramWebApp()) {
+    // Check if window.Telegram exists
+    const hasTelegram = typeof window !== 'undefined' && !!window.Telegram?.WebApp;
+    
+    // Check if window.TelegramWebApp exists (alternative API)
+    const hasTelegramWebApp = typeof window !== 'undefined' && !!window.TelegramWebApp;
+    
+    if (hasTelegram) {
       window.Telegram.WebApp.showAlert(message, () => {
+        resolve();
+      });
+    } else if (hasTelegramWebApp) {
+      window.TelegramWebApp.showAlert(message, () => {
         resolve();
       });
     } else {
@@ -436,8 +468,18 @@ export function showAlert(message: string): Promise<void> {
 // Show a confirmation dialog using Telegram's native UI
 export function showConfirm(message: string): Promise<boolean> {
   return new Promise((resolve) => {
-    if (isTelegramWebApp()) {
+    // Check if window.Telegram exists
+    const hasTelegram = typeof window !== 'undefined' && !!window.Telegram?.WebApp;
+    
+    // Check if window.TelegramWebApp exists (alternative API)
+    const hasTelegramWebApp = typeof window !== 'undefined' && !!window.TelegramWebApp;
+    
+    if (hasTelegram) {
       window.Telegram.WebApp.showConfirm(message, (isConfirmed) => {
+        resolve(isConfirmed);
+      });
+    } else if (hasTelegramWebApp) {
+      window.TelegramWebApp.showConfirm(message, (isConfirmed) => {
         resolve(isConfirmed);
       });
     } else {
