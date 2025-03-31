@@ -66,6 +66,13 @@ function App() {
         // URL parametrelerini kontrol et
         const hasTelegramParams = checkTelegramParams();
         
+        // Test modu parametresi
+        const urlParams = new URLSearchParams(window.location.search);
+        const testMode = urlParams.get('forceTestUser') === 'true';
+        if (testMode) {
+          console.log("TestMode enabled via URL parameter");
+        }
+        
         // Telegram WebApp kontrolü
         if (window.Telegram && window.Telegram.WebApp) {
           console.log("Telegram WebApp bulundu!");
