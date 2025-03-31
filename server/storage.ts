@@ -532,7 +532,13 @@ let storage: IStorage;
 // Geliştirme ortamında bellek içi depolama kullan
 if (process.env.NODE_ENV === 'production') {
   console.log('Using Neon.tech PostgreSQL storage in production');
-  storage = new NeonStorage();
+  try {
+    storage = new NeonStorage();
+  } catch (error) {
+    console.error("CRITICAL: Failed to initialize Neon.tech storage:", error);
+    console.log("Falling back to in-memory storage due to database connection error");
+    storage = new MemStorage();
+  }
 } else {
   console.log('Using in-memory storage for development');
   storage = new MemStorage();
