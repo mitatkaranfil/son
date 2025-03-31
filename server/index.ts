@@ -13,15 +13,17 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Uncaught hataları yakala
+// Global error handling
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
-  // Hata logla ama işlemi sonlandırma
+  console.error('Stack:', error.stack);
+  // Don't exit, just log the error
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  // Hata logla ama işlemi sonlandırma
+  console.error('Unhandled Rejection at:', promise);
+  console.error('Reason:', reason);
+  // Don't exit, just log the error
 });
 
 const app = express();
@@ -137,7 +139,10 @@ app.get('/health', (_req, res) => {
 
 export async function startServer() {
   try {
-    const PORT = process.env.PORT || 8080;
+    // Get port from environment or fallback to 3000
+    const PORT = parseInt(process.env.PORT || '3000');
+    console.log(`Starting server on port ${PORT}`);
+
     const server = app.listen(PORT, () => {
       console.log(`[express] serving on port ${PORT}`);
       console.log(`[express] client-dist path: ${path.resolve(__dirname, "..", "client-dist")}`);
@@ -171,10 +176,13 @@ export async function startServer() {
     return server;
   } catch (error) {
     console.error("Server startup error:", error);
+    console.error("Stack trace:", error.stack);
     process.exit(1);
   }
 }
 
-startServer().catch((err) => {
-  console.error("Failed to start server:", err);
+// Start the server
+startServer().catch((error) => {
+  console.error("Failed to start server:", error);
+  process.exit(1);
 });
