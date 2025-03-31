@@ -1,5 +1,5 @@
 # Build aşaması
-FROM node:18-alpine AS builder
+FROM node:lts-slim AS builder
 
 WORKDIR /app
 
@@ -7,9 +7,6 @@ WORKDIR /app
 ENV NODE_OPTIONS="--max-old-space-size=1024"
 ENV npm_config_cache=/tmp/npm-cache
 ENV npm_config_prefer_offline=true
-
-# Debug için gerekli araçlar
-RUN apk add --no-cache bash
 
 # Paket dosyalarını kopyala
 COPY package*.json ./
@@ -39,7 +36,7 @@ RUN echo "Listing root directory:" && ls -la
 RUN echo "Listing client-dist directory:" && ls -la client-dist || echo "client-dist directory does not exist"
 
 # Çalışma aşaması
-FROM node:18-alpine
+FROM node:lts-slim
 
 WORKDIR /app
 
