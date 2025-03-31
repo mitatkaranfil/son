@@ -1,5 +1,5 @@
 // Telegram Mini App SDK wrapper
-import { getUserByTelegramId, createUser } from './api';
+import { getUserByTelegramId, createUser } from './api.ts';
 import { nanoid } from 'nanoid';
 import { User } from '@/types';
 
