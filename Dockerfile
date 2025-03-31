@@ -20,8 +20,15 @@ RUN npm config set loglevel warn \
     && npm install --no-audit --no-fund --prefer-offline \
     && npm cache clean --force
 
-# Kaynak kodunu kopyala
+# Önce server klasörünü kopyala ve içeriğini kontrol et
+COPY server ./server/
+RUN ls -la server/
+
+# Sonra tüm diğer dosyaları kopyala
 COPY . .
+
+# Typescript ve esbuild ile ilgili sorunlara karşı build öncesi önlem
+RUN npm rebuild esbuild --update-binary
 
 # Client build öncesi ortam değişkenlerini ayarla
 ENV NODE_ENV=production
@@ -30,8 +37,8 @@ ENV DEBUG=vite:*
 # Client uygulamasını derle
 RUN npm run build:client || (echo "Client build failed" && exit 1)
 
-# Server uygulamasını derle
-RUN npm run build:server || (echo "Server build failed" && exit 1)
+# Server uygulamasını derle - verbose mod ile çalıştır
+RUN NODE_OPTIONS="--max-old-space-size=1024 --trace-warnings" npm run build:server || (echo "Server build failed" && exit 1)
 
 # Çalışma aşaması - Daha küçük bir base image kullan
 FROM node:18-alpine AS runtime
@@ -55,7 +62,9 @@ RUN npm config set loglevel warn \
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/client/dist ./client/dist
 
-# Portu aç
+# Node debugger için bağlantı noktasını aç
+EXPOSE 9229
+# Uygulama için bağlantı noktasını aç
 EXPOSE 8080
 
 # Uygulamayı başlat
