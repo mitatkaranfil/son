@@ -1,5 +1,5 @@
 # Build aşaması
-FROM node:lts-slim AS builder
+FROM node:18-alpine AS builder
 
 WORKDIR /app
 
@@ -12,7 +12,7 @@ ENV npm_config_prefer_offline=true
 COPY package*.json ./
 COPY tsconfig.json ./
 
-# Client build için bağımlılıkları yükle
+# Bağımlılıkları yükle
 RUN npm config set loglevel warn \
     && npm install --no-audit --no-fund --prefer-offline \
     && npm cache clean --force
@@ -36,7 +36,7 @@ RUN echo "Listing root directory:" && ls -la
 RUN echo "Listing client-dist directory:" && ls -la client-dist || echo "client-dist directory does not exist"
 
 # Çalışma aşaması
-FROM node:lts-slim
+FROM node:18-alpine
 
 WORKDIR /app
 
@@ -45,11 +45,13 @@ ENV NODE_OPTIONS="--max-old-space-size=512"
 ENV NODE_ENV=production
 ENV PORT=8080
 
-# Paket dosyalarını kopyala ve bağımlılıkları yükle
+# Paket dosyalarını kopyala
 COPY package*.json ./
 COPY tsconfig.json ./
+
+# Sadece üretim bağımlılıklarını yükle
 RUN npm config set loglevel warn \
-    && npm install --no-audit --no-fund --prefer-offline \
+    && npm install --no-audit --no-fund --prefer-offline --only=production \
     && npm cache clean --force
 
 # Server ve client dosyalarını kopyala
