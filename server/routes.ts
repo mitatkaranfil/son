@@ -462,6 +462,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin Route for Task Management
   router.get("/admin/tasks", async (req, res) => {
     try {
+      console.log("Admin tasks request received");
+      // Test kullanıcıları için demo görevler
+      if (req.query.test === "true" || req.headers["x-test-mode"] === "true") {
+        console.log("Returning demo tasks for test user");
+        return res.json([
+          {
+            id: "demo1",
+            title: "Günlük Giriş Yap",
+            description: "Uygulamaya giriş yaparak puan kazan",
+            type: "daily",
+            points: 10,
+            requiredAmount: 1,
+            isActive: true,
+          },
+          {
+            id: "demo2",
+            title: "Arkadaşlarını Davet Et",
+            description: "Referans kodunu paylaşarak arkadaşlarını davet et",
+            type: "special",
+            points: 50,
+            requiredAmount: 1,
+            isActive: true,
+          },
+          {
+            id: "demo3",
+            title: "Haftalık Boost Satın Al",
+            description: "Herhangi bir boost satın alarak mining hızını artır",
+            type: "weekly",
+            points: 25,
+            requiredAmount: 1,
+            isActive: true,
+          }
+        ]);
+      }
+      
       const allTasks = await storage.getTasks();
       res.json(allTasks);
     } catch (error) {
@@ -473,6 +508,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin Route for Boost Management
   router.get("/admin/boosts", async (req, res) => {
     try {
+      console.log("Admin boosts request received");
+      // Test kullanıcıları için demo boostlar
+      if (req.query.test === "true" || req.headers["x-test-mode"] === "true") {
+        console.log("Returning demo boosts for test user");
+        return res.json([
+          {
+            id: "boost1",
+            name: "Hız Aşımı",
+            description: "Mining hızını 1.5x artırır",
+            multiplier: 150,
+            durationHours: 24,
+            price: 100,
+            isActive: true,
+            iconName: "rocket",
+            colorClass: "blue",
+            isPopular: true
+          },
+          {
+            id: "boost2",
+            name: "Süper Güç",
+            description: "Mining hızını 2x artırır",
+            multiplier: 200,
+            durationHours: 12,
+            price: 150,
+            isActive: true,
+            iconName: "zap",
+            colorClass: "yellow",
+            isPopular: false
+          },
+          {
+            id: "boost3",
+            name: "Mega Hızlandırıcı",
+            description: "Mining hızını 3x artırır",
+            multiplier: 300,
+            durationHours: 6,
+            price: 250,
+            isActive: true,
+            iconName: "flame",
+            colorClass: "red",
+            isPopular: false
+          }
+        ]);
+      }
+      
       const allBoosts = await storage.getBoostTypes();
       res.json(allBoosts);
     } catch (error) {

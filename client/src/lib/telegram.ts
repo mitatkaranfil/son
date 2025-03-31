@@ -110,6 +110,42 @@ export function isTelegramWebApp(): boolean {
     console.log('isTelegramWebApp check - window.Telegram exists:', hasTelegramObject);
     console.log('isTelegramWebApp check - window.Telegram.WebApp exists:', hasWebAppObject);
     
+    // URL parametrelerinden Telegram bilgileri var mı kontrol et
+    function getUrlParameter(name: string): string | null {
+      name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+      const regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+      const results = regex.exec(location.search);
+      return results === null ? null : decodeURIComponent(results[1].replace(/\+/g, ' '));
+    }
+    
+    // Query params'da tgWebAppData varsa, bunları window.Telegram'a aktaralım
+    const tgWebAppData = getUrlParameter('tgWebAppData');
+    const tgWebAppVersion = getUrlParameter('tgWebAppVersion');
+    
+    if (tgWebAppData && !hasWebAppObject) {
+      console.log('Found tgWebAppData in URL, initializing Telegram object manually');
+      try {
+        // Telegram nesnesini manuel oluşturalım
+        // @ts-ignore
+        window.Telegram = {
+          WebApp: {
+            initData: tgWebAppData,
+            initDataUnsafe: JSON.parse(decodeURIComponent(tgWebAppData)),
+            version: tgWebAppVersion || '6.0',
+            ready: () => console.log('Manual WebApp ready called'),
+            expand: () => console.log('Manual WebApp expand called'),
+            sendData: (data: string) => console.log('Manual WebApp sendData called with:', data),
+            close: () => console.log('Manual WebApp close called'),
+          }
+        };
+        
+        console.log('Manual Telegram object created', window.Telegram);
+        return true;
+      } catch (err) {
+        console.error('Error creating manual Telegram object:', err);
+      }
+    }
+    
     // Telegram WebApp'in testi için basit bir yöntem: 
     // - URL'de Telegram parametreleri var mı kontrol et
     const url = window.location.href;

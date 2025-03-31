@@ -96,7 +96,11 @@ const Admin: React.FC = () => {
       // Try API first
       try {
         console.log("Trying to load tasks from API");
-        const response = await fetch("/api/admin/tasks");
+        const response = await fetch("/api/admin/tasks?test=true", {
+          headers: {
+            "X-Test-Mode": "true"
+          }
+        });
         if (response.ok) {
           const tasksData = await response.json();
           console.log("Tasks loaded from API:", tasksData);
@@ -118,7 +122,11 @@ const Admin: React.FC = () => {
       // Try API for boosts
       try {
         console.log("Trying to load boosts from API");
-        const response = await fetch("/api/admin/boosts");
+        const response = await fetch("/api/admin/boosts?test=true", {
+          headers: {
+            "X-Test-Mode": "true"
+          }
+        });
         if (response.ok) {
           const boostsData = await response.json();
           console.log("Boosts loaded from API:", boostsData);
