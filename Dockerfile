@@ -46,6 +46,7 @@ WORKDIR /app
 # Bellek yönetimi ve ortam değişkenleri
 ENV NODE_OPTIONS="--max-old-space-size=512"
 ENV NODE_ENV=production
+ENV PORT=8080
 
 # Paket dosyalarını kopyala ve bağımlılıkları yükle
 COPY package*.json ./
@@ -60,7 +61,7 @@ COPY client-dist/ ./client-dist/
 COPY .env ./
 
 # Expose port
-EXPOSE 8080
+EXPOSE $PORT
 
 # Start the application
 CMD ["node", "-r", "dotenv/config", "--import", "tsx", "server/index.ts"]
