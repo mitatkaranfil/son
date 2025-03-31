@@ -14,9 +14,10 @@ RUN apk add --no-cache bash
 # Paket dosyalarını kopyala
 COPY package*.json ./
 
-# Dependencies kurulumunu optimize et
+# Dependencies kurulumunu optimize et - npm ci yerine npm install kullan
+# npm ci, package-lock.json gerektirdiği ve senkronize olması gerektiği için hata veriyor
 RUN npm config set loglevel warn \
-    && npm ci --no-audit --no-fund --prefer-offline --production=false \
+    && npm install --no-audit --no-fund --prefer-offline \
     && npm cache clean --force
 
 # Kaynak kodunu kopyala
@@ -45,9 +46,9 @@ ENV PORT=8080
 # Paket dosyalarını kopyala
 COPY package*.json ./
 
-# Sadece üretim bağımlılıklarını yükle - bellek kullanımını optimize et
+# Sadece üretim bağımlılıklarını yükle - install komutunda --omit=dev kullan
 RUN npm config set loglevel warn \
-    && npm install --only=production --no-audit --no-fund --prefer-offline \
+    && npm install --omit=dev --no-audit --no-fund --prefer-offline \
     && npm cache clean --force
 
 # Derleme aşamasından gerekli dosyaları kopyala
