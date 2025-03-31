@@ -3,24 +3,24 @@ FROM node:18
 
 WORKDIR /app
 
-# Verbose logging
-ENV NPM_CONFIG_LOGLEVEL=verbose
+# Log seviyesini arttır
+ENV NPM_CONFIG_LOGLEVEL=silly
 
 # Package dosyalarını kopyala
 COPY package*.json ./
 COPY tsconfig*.json ./
+COPY vite.config.ts ./
 
-# Tüm bağımlılıkları yükle (dev bağımlılıkları da dahil)
-RUN npm install --verbose
+# Tüm bağımlılıkları yükle
+RUN npm install
 
-# Proje dosyalarını kopyala
+# Tüm proje dosyalarını kopyala
 COPY . .
 
-# Client build için gerekli ortam değişkenlerini ayarla
-# Örneğin, eğer build sırasında .env dosyasına ihtiyaç varsa
-# COPY .env ./ 
+# Node bellek sınırını arttır
+ENV NODE_OPTIONS=--max_old_space_size=4096
 
-# Client'ı build et
-RUN npm run build:client
+# Build sırasında detaylı hata bilgisi al
+RUN npm run build:client || (echo "Build hatası detayları:" && cat npm-debug.log && exit 1)
 
 # Diğer ayarlar...
