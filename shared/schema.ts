@@ -1,6 +1,9 @@
-import { pgTable, text, serial, integer, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, pgEnum, sql } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// User Role Enum
+export const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
 
 // User Schema
 export const users = pgTable("users", {
@@ -19,6 +22,8 @@ export const users = pgTable("users", {
   joinDate: timestamp("join_date").notNull().default(sql`NOW()`),
   completedTasksCount: integer("completed_tasks_count").notNull().default(0),
   boostUsageCount: integer("boost_usage_count").notNull().default(0),
+  role: userRoleEnum("role").notNull().default("user"),
+  password: text("password"), // Admin kullanıcılar için şifre
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({

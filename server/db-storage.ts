@@ -1,5 +1,5 @@
 import { eq, and } from "drizzle-orm";
-import { db, log } from "./db";
+import { db, log } from "./db.ts";
 import {
   users, User, InsertUser,
   tasks, Task, InsertTask,
@@ -8,7 +8,7 @@ import {
   userBoosts, UserBoost, InsertUserBoost,
   referrals, Referral, InsertReferral
 } from "@shared/schema";
-import { IStorage } from "./storage";
+import { IStorage } from "./storage.ts";
 
 // Neon.tech PostgreSQL veritabanına bağlanan bir IStorage implementasyonu
 export class NeonStorage implements IStorage {

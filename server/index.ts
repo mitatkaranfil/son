@@ -2,10 +2,10 @@ import express, { type Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import session from "express-session";
 import passport from "passport";
-import { registerRoutes } from "./routes";
-import { registerViteDevServer, serveStatic } from "./vite";
-import { authRoutes, createAdminUser } from "./auth";
-import { log } from "./db";
+import { registerRoutes } from "./routes.ts";
+import { registerViteDevServer, serveStatic } from "./vite.ts";
+import { authRoutes, createAdminUser } from "./auth.ts";
+import { log } from "./db.ts";
 import path from "path";
 import { fileURLToPath } from "url";
 

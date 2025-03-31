@@ -1,6 +1,6 @@
 import express, { type Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage } from "./storage.ts";
 import { 
   insertUserSchema, 
   insertTaskSchema, 
@@ -12,7 +12,7 @@ import {
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { nanoid } from "nanoid";
-import { isAdmin } from "./auth";
+import { isAdmin } from "./auth.ts";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const router = express.Router();

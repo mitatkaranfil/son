@@ -22,6 +22,9 @@ RUN npm config set loglevel warn \
 # Tüm kaynak kodunu kopyala
 COPY . .
 
+# Dosya sistemini kontrol et
+RUN echo "Listing server directory:" && ls -la server/
+
 # Client build öncesi ortam değişkenlerini ayarla
 ENV NODE_ENV=production
 ENV DEBUG=vite:*
@@ -46,21 +49,24 @@ ENV PORT=8080
 # Paket dosyalarını kopyala
 COPY package*.json ./
 
-# Tüm bağımlılıkları yükle (dev dahil) - TS Node için gerekli
+# Bağımlılıkları yükle
 RUN npm config set loglevel warn \
     && npm install --no-audit --no-fund --prefer-offline \
     && npm install -g tsx \
     && npm cache clean --force
 
-# Server dosyalarını kopyala
-COPY --from=builder /app/server ./server
-# Client build dosyalarını kopyala
+# Server klasörünü kopyala - tüm dosyalar dahil
+COPY --from=builder /app/server/*.ts ./server/
+COPY --from=builder /app/shared ./shared
 COPY --from=builder /app/client-dist ./client-dist
+
+# Kopyalanan dosyaları kontrol et
+RUN ls -la server/
 
 # Node debugger için bağlantı noktasını aç
 EXPOSE 9229
 # Uygulama için bağlantı noktasını aç
 EXPOSE 8080
 
-# Uygulamayı TSX ile başlat (TypeScript doğrudan çalıştırma)
+# Uygulamayı TSX ile başlat (TypeScript dosyalarını doğrudan çalıştırma)
 CMD ["tsx", "server/index.ts"] 
